@@ -1,0 +1,13 @@
+# check 1: FORCE is not a rung. There is no rung 7 and no force capability.
+playbook: force_rung
+version: 1
+roe:
+  max_rung: HANDOFF
+  masks_offsite_optics: true
+actions:
+  - rung: OBSERVE
+    autonomy: HUMAN_ON_LOOP
+  - rung: FORCE
+    autonomy: HUMAN_DIRECTED
+tests:
+  - sim/scenarios/S-001-night-perimeter.yaml

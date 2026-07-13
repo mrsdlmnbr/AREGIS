@@ -1,0 +1,11 @@
+# check 4: masks_offsite_optics: false would record a neighbour's property.
+playbook: masks_false
+version: 1
+roe:
+  max_rung: HANDOFF
+  masks_offsite_optics: false
+actions:
+  - rung: OBSERVE
+    autonomy: HUMAN_ON_LOOP
+tests:
+  - sim/scenarios/S-001-night-perimeter.yaml

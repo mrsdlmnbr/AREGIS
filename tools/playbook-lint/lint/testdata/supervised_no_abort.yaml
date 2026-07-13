@@ -1,0 +1,11 @@
+# check 7: HUMAN_SUPERVISED without an abort window is not supervised.
+playbook: supervised_no_abort
+version: 1
+roe:
+  max_rung: HANDOFF
+  masks_offsite_optics: true
+actions:
+  - rung: OBSERVE
+    autonomy: HUMAN_SUPERVISED
+tests:
+  - sim/scenarios/S-001-night-perimeter.yaml

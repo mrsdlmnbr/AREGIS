@@ -1,0 +1,10 @@
+# check 5: a playbook without a regression suite cannot be deployed.
+playbook: empty_tests
+version: 1
+roe:
+  max_rung: HANDOFF
+  masks_offsite_optics: true
+actions:
+  - rung: OBSERVE
+    autonomy: HUMAN_ON_LOOP
+tests: []

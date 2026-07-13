@@ -1,0 +1,11 @@
+# check 1: a numeric seventh rung is rejected the same way a named one is.
+playbook: rung_seven
+version: 1
+roe:
+  max_rung: HANDOFF
+  masks_offsite_optics: true
+actions:
+  - rung: 7
+    autonomy: HUMAN_DIRECTED
+tests:
+  - sim/scenarios/S-001-night-perimeter.yaml

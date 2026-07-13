@@ -1,0 +1,22 @@
+[package]
+name = "aegis-sim-harness"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "aegis-sim"
+path = "src/main.rs"
+
+[dependencies]
+aegis-common = { workspace = true }
+gateway = { workspace = true }
+resolver = { workspace = true }
+missions = { workspace = true }
+governor = { workspace = true }
+asset-adapter = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }

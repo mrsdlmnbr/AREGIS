@@ -1,0 +1,12 @@
+# check 7: abort_window_seconds below 5 gives the human no real chance to abort.
+playbook: short_abort
+version: 1
+roe:
+  max_rung: HANDOFF
+  masks_offsite_optics: true
+actions:
+  - rung: OBSERVE
+    autonomy: HUMAN_SUPERVISED
+    abort_window_seconds: 3
+tests:
+  - sim/scenarios/S-001-night-perimeter.yaml

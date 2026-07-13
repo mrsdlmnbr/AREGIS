@@ -1,0 +1,11 @@
+# check 6: version must be a positive integer.
+playbook: version_zero
+version: 0
+roe:
+  max_rung: HANDOFF
+  masks_offsite_optics: true
+actions:
+  - rung: OBSERVE
+    autonomy: HUMAN_ON_LOOP
+tests:
+  - sim/scenarios/S-001-night-perimeter.yaml

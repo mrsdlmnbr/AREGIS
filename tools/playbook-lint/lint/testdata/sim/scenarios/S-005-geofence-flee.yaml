@@ -1,0 +1,2 @@
+# stub scenario fixture — exists only so playbook-lint check 5 (file existence)
+# is hermetic in tests. The real scenario lives in sim/scenarios/.

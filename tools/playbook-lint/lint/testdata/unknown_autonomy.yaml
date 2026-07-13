@@ -1,0 +1,11 @@
+# check 2: FULL_AUTO is not an autonomy level. Fail closed.
+playbook: unknown_autonomy
+version: 1
+roe:
+  max_rung: HANDOFF
+  masks_offsite_optics: true
+actions:
+  - rung: OBSERVE
+    autonomy: FULL_AUTO
+tests:
+  - sim/scenarios/S-001-night-perimeter.yaml

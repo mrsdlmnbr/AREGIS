@@ -1,0 +1,99 @@
+# ============================================================================
+#  playbooks/perimeter_breach_night.yaml
+#
+#  A playbook may only TIGHTEN safety. It can never loosen it. If this file
+#  asked for `autonomy: HUMAN_ON_LOOP` on ANNOUNCE, `playbook-lint` would
+#  reject it at load and the Governor would refuse it at runtime anyway.
+#
+#  This playbook CANNOT be deployed to a live property until its regression
+#  suite (sim/scenarios/S-001-night-perimeter.yaml) passes, and it runs in
+#  shadow mode for 30 days before it may authorize anything. Enforced in the
+#  deploy pipeline, not by convention.  (spec §11)
+# ============================================================================
+
+playbook: perimeter_breach_night
+version: 4
+description: >
+  An unrecognised person on the grounds at night, with nobody home and no
+  expectation on file. The most common true positive on an estate, and the
+  most common false positive too — which is why the Expectation and
+  pattern-of-life cross-checks run before anything launches.
+
+trigger:
+  all:
+    - entity.class == PERSON
+    - entity.identity.known == false
+    - entity.zone.class in [PERIMETER, GROUNDS]
+    - posture in [AWAY, NIGHT]
+    - entity.confidence >= 0.85
+    - entity.expected == false          # ← the cheapest line in this file and the
+                                        #   one that kills the most false alarms
+
+assess:
+  cross_check:
+    - expectations        # did the estate manager pre-register anyone?
+    - mesh_sightings      # have the neighbours seen this handle tonight?
+    - vehicle_registry    # did they arrive in a vehicle we know?
+    - pol_baseline        # how unusual is this, here, at this hour?
+
+roe:
+  max_rung: HANDOFF
+  geofence: property.geofence
+  masks_offsite_optics: true            # masked in the ENCODER, not the UI
+
+actions:
+  - rung: OBSERVE
+    autonomy: HUMAN_SUPERVISED          # 8-second abort window. The sweet spot:
+    abort_window_seconds: 8             # response in 8s, human still in the loop.
+    asset: any_available_air
+    fallback_asset: any_available_ground
+
+  - rung: ILLUMINATE
+    autonomy: HUMAN_SUPERVISED
+    abort_window_seconds: 5
+
+  - rung: ANNOUNCE
+    autonomy: HUMAN_DIRECTED            # the Governor enforces this regardless of
+                                        # what is written here (invariant I1)
+    script: >
+      You are on private property. You are being recorded.
+      The police have been notified.
+
+  - rung: SHADOW
+    autonomy: HUMAN_DIRECTED
+    stop_at: geofence                   # at the line, the asset holds, optics mask,
+                                        # and we hand off to the mesh and the fixed
+                                        # cameras. We do not follow anyone off the
+                                        # property. Ever.
+
+  - rung: DENY
+    autonomy: HUMAN_DIRECTED
+    effects: [lock_interior, close_gate, arm_safe_room]
+
+  - rung: HANDOFF
+    autonomy: HUMAN_DIRECTED
+    targets: [detail, law_enforcement]
+
+notify:
+  console: immediate
+  owner: severity >= 4                  # the owner buys silence. The console
+  detail: severity >= 4                 # absorbs the noise. (spec §14.4)
+  law_enforcement: rung >= HANDOFF
+
+evidence:
+  seal_on_trigger: true                 # not on resolution. If we wait, we lose the
+                                        # first thirty seconds, which are the only
+                                        # thirty seconds that matter.
+
+escalate:
+  - if: entity.dwell_seconds > 20 and entity.zone.class == THRESHOLD
+    then: severity = 5
+
+# ── regression suite (must pass before deploy) ──────────────────────────────
+tests:
+  - sim/scenarios/S-001-night-perimeter.yaml       # the true positive
+  - sim/scenarios/S-002-expected-housekeeper.yaml  # must NOT fire
+  - sim/scenarios/S-003-raccoon.yaml               # must NOT fire
+  - sim/scenarios/S-004-resident-returns.yaml      # must NOT fire
+  - sim/scenarios/S-005-geofence-flee.yaml         # asset must HOLD at the line
+  - sim/scenarios/S-006-forged-approval.yaml       # ANNOUNCE must be DENIED

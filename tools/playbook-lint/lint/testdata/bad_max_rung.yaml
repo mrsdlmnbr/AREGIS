@@ -1,0 +1,11 @@
+# check 3: roe.max_rung must be a member of the six-rung ladder.
+playbook: bad_max_rung
+version: 1
+roe:
+  max_rung: ENGAGE
+  masks_offsite_optics: true
+actions:
+  - rung: OBSERVE
+    autonomy: HUMAN_ON_LOOP
+tests:
+  - sim/scenarios/S-001-night-perimeter.yaml

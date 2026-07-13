@@ -1,0 +1,12 @@
+# check 2 (invariant I4): ANNOUNCE is HUMAN_DIRECTED only. A playbook may
+# only tighten, never loosen.
+playbook: announce_on_loop
+version: 1
+roe:
+  max_rung: HANDOFF
+  masks_offsite_optics: true
+actions:
+  - rung: ANNOUNCE
+    autonomy: HUMAN_ON_LOOP
+tests:
+  - sim/scenarios/S-001-night-perimeter.yaml

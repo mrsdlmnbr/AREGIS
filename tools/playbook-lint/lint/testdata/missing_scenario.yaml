@@ -1,0 +1,11 @@
+# check 5: every listed scenario file must exist relative to the repo root.
+playbook: missing_scenario
+version: 1
+roe:
+  max_rung: HANDOFF
+  masks_offsite_optics: true
+actions:
+  - rung: OBSERVE
+    autonomy: HUMAN_ON_LOOP
+tests:
+  - sim/scenarios/S-999-does-not-exist.yaml

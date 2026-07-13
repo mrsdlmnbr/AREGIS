@@ -1,0 +1,10 @@
+# check 4: roe.masks_offsite_optics must be PRESENT, not defaulted.
+playbook: masks_absent
+version: 1
+roe:
+  max_rung: HANDOFF
+actions:
+  - rung: OBSERVE
+    autonomy: HUMAN_ON_LOOP
+tests:
+  - sim/scenarios/S-001-night-perimeter.yaml

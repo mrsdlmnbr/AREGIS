@@ -1,0 +1,15 @@
+# Violates all seven checks at once. The linter must report EVERY violation,
+# not stop at the first.
+playbook: Not A Slug
+version: 0
+roe:
+  max_rung: FORCE
+  masks_offsite_optics: false
+actions:
+  - rung: FORCE
+    autonomy: HUMAN_DIRECTED
+  - rung: ANNOUNCE
+    autonomy: HUMAN_ON_LOOP
+  - rung: OBSERVE
+    autonomy: HUMAN_SUPERVISED
+tests: []

@@ -1,0 +1,11 @@
+# check 6: the playbook name must be a [a-z0-9_]+ slug.
+playbook: Perimeter-Breach
+version: 1
+roe:
+  max_rung: HANDOFF
+  masks_offsite_optics: true
+actions:
+  - rung: OBSERVE
+    autonomy: HUMAN_ON_LOOP
+tests:
+  - sim/scenarios/S-001-night-perimeter.yaml
