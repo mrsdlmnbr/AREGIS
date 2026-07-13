@@ -108,7 +108,8 @@ impl Resolver {
     }
 
     pub fn ingest_motion(&mut self, device_id: &str, zone_id: &str, at: Timestamp) {
-        self.motion_events.push((device_id.to_string(), zone_id.to_string(), at));
+        self.motion_events
+            .push((device_id.to_string(), zone_id.to_string(), at));
     }
 
     /// Ingest one sighting; associate or mint. Returns the entity id.
@@ -126,8 +127,7 @@ impl Resolver {
                     }
                 }
                 let dt = (s.at - e.last_at).num_seconds();
-                dt >= 0
-                    && dt <= ASSOC_GATE_SECONDS
+                (0..=ASSOC_GATE_SECONDS).contains(&dt)
                     && e.position.dist(&s.world_position) <= ASSOC_GATE_METRES
             });
 
@@ -228,7 +228,9 @@ impl Resolver {
     /// Distinct corroborating sensors: devices that produced sightings, plus
     /// motion sensors that fired in the entity's zone within the window.
     pub fn distinct_sensors(&self, entity_id: &str) -> usize {
-        let Some(e) = self.entity(entity_id) else { return 0 };
+        let Some(e) = self.entity(entity_id) else {
+            return 0;
+        };
         let mut sensors: BTreeSet<&str> = e.devices.iter().map(|d| d.as_str()).collect();
         for (device, zone, at) in &self.motion_events {
             if *zone == e.zone_id || e.trajectory.len() > 1 {
@@ -254,7 +256,9 @@ impl Resolver {
     }
 
     fn stamp_expectation(&mut self, entity_id: &str, at: Timestamp) {
-        let Some(idx) = self.entities.iter().position(|e| e.id == entity_id) else { return };
+        let Some(idx) = self.entities.iter().position(|e| e.id == entity_id) else {
+            return;
+        };
         let (identity_id, known, zone_id) = {
             let e = &self.entities[idx];
             (e.identity_id.clone(), e.identity_known, e.zone_id.clone())
@@ -293,12 +297,22 @@ mod tests {
             ZoneDef {
                 id: "grounds_north".into(),
                 class: ZoneClass::Grounds,
-                area: Polygon::from_pairs(&[[200.0, 80.0], [520.0, 80.0], [520.0, 230.0], [200.0, 230.0]]),
+                area: Polygon::from_pairs(&[
+                    [200.0, 80.0],
+                    [520.0, 80.0],
+                    [520.0, 230.0],
+                    [200.0, 230.0],
+                ]),
             },
             ZoneDef {
                 id: "gate_drive".into(),
                 class: ZoneClass::Threshold,
-                area: Polygon::from_pairs(&[[600.0, 300.0], [680.0, 300.0], [680.0, 380.0], [600.0, 380.0]]),
+                area: Polygon::from_pairs(&[
+                    [600.0, 300.0],
+                    [680.0, 300.0],
+                    [680.0, 380.0],
+                    [600.0, 380.0],
+                ]),
             },
         ]
     }
@@ -319,16 +333,49 @@ mod tests {
     #[test]
     fn three_sensors_fuse_to_one_entity_and_beat_any_one() {
         let mut r = Resolver::new("ridgeline", zones(), vec![]);
-        r.ingest_motion("S-12", "grounds_north", parse_ts("2026-03-14T03:11:43Z").unwrap());
-        let e1 = r.ingest_sighting(s("1", "CAM-04", "2026-03-14T03:11:43.6Z", 0.79, 330.0, 125.0));
-        let e2 = r.ingest_sighting(s("2", "CAM-04", "2026-03-14T03:11:44.4Z", 0.84, 352.0, 152.0));
-        let e3 = r.ingest_sighting(s("3", "CAM-11", "2026-03-14T03:11:45.4Z", 0.81, 398.0, 205.0));
+        r.ingest_motion(
+            "S-12",
+            "grounds_north",
+            parse_ts("2026-03-14T03:11:43Z").unwrap(),
+        );
+        let e1 = r.ingest_sighting(s(
+            "1",
+            "CAM-04",
+            "2026-03-14T03:11:43.6Z",
+            0.79,
+            330.0,
+            125.0,
+        ));
+        let e2 = r.ingest_sighting(s(
+            "2",
+            "CAM-04",
+            "2026-03-14T03:11:44.4Z",
+            0.84,
+            352.0,
+            152.0,
+        ));
+        let e3 = r.ingest_sighting(s(
+            "3",
+            "CAM-11",
+            "2026-03-14T03:11:45.4Z",
+            0.81,
+            398.0,
+            205.0,
+        ));
         assert_eq!(e1, e2);
         assert_eq!(e2, e3);
         assert_eq!(r.entities.len(), 1);
         let e = r.entity(&e1).unwrap();
-        assert!(e.confidence >= 0.99, "fused {} — three sensors beat any one", e.confidence);
-        assert!(e.identity_id.starts_with("unknown:"), "durable handle: {}", e.identity_id);
+        assert!(
+            e.confidence >= 0.99,
+            "fused {} — three sensors beat any one",
+            e.confidence
+        );
+        assert!(
+            e.identity_id.starts_with("unknown:"),
+            "durable handle: {}",
+            e.identity_id
+        );
         assert!(!e.identity_known);
         assert_eq!(r.distinct_sensors(&e1), 3, "CAM-04 + CAM-11 + S-12 motion");
     }
@@ -337,9 +384,26 @@ mod tests {
     fn unknown_handles_are_deterministic_across_replays() {
         let mut a = Resolver::new("ridgeline", zones(), vec![]);
         let mut b = Resolver::new("ridgeline", zones(), vec![]);
-        let ea = a.ingest_sighting(s("1", "CAM-04", "2026-03-14T03:11:43.6Z", 0.79, 330.0, 125.0));
-        let eb = b.ingest_sighting(s("1", "CAM-04", "2026-03-14T03:11:43.6Z", 0.79, 330.0, 125.0));
-        assert_eq!(a.entity(&ea).unwrap().identity_id, b.entity(&eb).unwrap().identity_id);
+        let ea = a.ingest_sighting(s(
+            "1",
+            "CAM-04",
+            "2026-03-14T03:11:43.6Z",
+            0.79,
+            330.0,
+            125.0,
+        ));
+        let eb = b.ingest_sighting(s(
+            "1",
+            "CAM-04",
+            "2026-03-14T03:11:43.6Z",
+            0.79,
+            330.0,
+            125.0,
+        ));
+        assert_eq!(
+            a.entity(&ea).unwrap().identity_id,
+            b.entity(&eb).unwrap().identity_id
+        );
     }
 
     #[test]
@@ -377,15 +441,26 @@ mod tests {
         let mut sighting = s("1", "CAM-GATE", "2026-03-17T21:30:00Z", 0.91, 640.0, 330.0);
         sighting.embedding_of = Some("person:ana".into());
         let eid = r.ingest_sighting(sighting);
-        assert!(!r.entity(&eid).unwrap().expected, "same person, wrong hour: not expected");
+        assert!(
+            !r.entity(&eid).unwrap().expected,
+            "same person, wrong hour: not expected"
+        );
     }
 
     #[test]
     fn dwell_accumulates_when_stationary() {
         let mut r = Resolver::new("ridgeline", zones(), vec![]);
         let eid = r.ingest_sighting(s("1", "CAM-11", "2026-03-14T03:11:52Z", 0.9, 440.0, 240.0));
-        r.advance_entity(&eid, Point::new(440.0, 240.0), parse_ts("2026-03-14T03:12:02Z").unwrap());
-        r.advance_entity(&eid, Point::new(440.5, 240.0), parse_ts("2026-03-14T03:12:06Z").unwrap());
+        r.advance_entity(
+            &eid,
+            Point::new(440.0, 240.0),
+            parse_ts("2026-03-14T03:12:02Z").unwrap(),
+        );
+        r.advance_entity(
+            &eid,
+            Point::new(440.5, 240.0),
+            parse_ts("2026-03-14T03:12:06Z").unwrap(),
+        );
         let e = r.entity(&eid).unwrap();
         assert!(e.dwell_seconds >= 13.9, "dwell {}", e.dwell_seconds);
     }

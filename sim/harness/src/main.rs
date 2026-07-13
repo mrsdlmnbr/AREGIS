@@ -22,7 +22,7 @@ use world::World;
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match run(&args) {
-        Ok(failures) if failures == 0 => {}
+        Ok(0) => {}
         Ok(failures) => {
             eprintln!("\n{failures} scenario(s) FAILED");
             std::process::exit(1);
@@ -57,7 +57,9 @@ fn parse_opts(args: &[String]) -> Result<(String, Opts)> {
     }
     while let Some(a) = it.next() {
         let mut take = |name: &str| -> Result<String> {
-            it.next().cloned().ok_or_else(|| anyhow!("{name} needs a value"))
+            it.next()
+                .cloned()
+                .ok_or_else(|| anyhow!("{name} needs a value"))
         };
         match a.as_str() {
             "--scenarios" => o.scenarios_dir = take("--scenarios")?.into(),
@@ -100,9 +102,10 @@ fn run(args: &[String]) -> Result<usize> {
 fn run_scenario(path: &Path, opts: &Opts) -> Result<bool> {
     let scenario: Scenario = serde_yaml::from_str(&std::fs::read_to_string(path)?)
         .with_context(|| format!("parse {path:?}"))?;
-    let fixture: Fixture = serde_yaml::from_str(
-        &std::fs::read_to_string(opts.fixtures_dir.join(format!("{}.yaml", scenario.property)))?,
-    )
+    let fixture: Fixture = serde_yaml::from_str(&std::fs::read_to_string(
+        opts.fixtures_dir
+            .join(format!("{}.yaml", scenario.property)),
+    )?)
     .context("parse fixture")?;
     let out_dir = PathBuf::from("sim/out");
     let name = scenario.name.clone();
@@ -136,7 +139,8 @@ fn run_scenario(path: &Path, opts: &Opts) -> Result<bool> {
         match item {
             Item::Script(i) => {
                 let ev = w.scenario.script[i].clone();
-                w.apply(&ev).with_context(|| format!("script event at t={t}"))?;
+                w.apply(&ev)
+                    .with_context(|| format!("script event at t={t}"))?;
             }
             Item::Assert(i) => {
                 let a = w.scenario.expect[i].clone();
@@ -187,7 +191,10 @@ fn check_assertion(w: &mut World, a: &Value, t: f64, failures: &mut Vec<String>)
             .unwrap_or("OBSERVE")
             .parse()
             .unwrap_or(EscalationRung::Observe);
-        let sig = pa.get("operator_signature").and_then(|v| v.as_str()).unwrap_or("absent");
+        let sig = pa
+            .get("operator_signature")
+            .and_then(|v| v.as_str())
+            .unwrap_or("absent");
         if sig == "absent" {
             // No script event carries this case — probe the real Governor now.
             let d = w.probe_authorize(rung, w.clock.now());
@@ -239,7 +246,10 @@ fn check_assertion(w: &mut World, a: &Value, t: f64, failures: &mut Vec<String>)
             }
             "entity.identity" => {
                 let want = v.as_str().unwrap_or_default();
-                let got = w.tracked().map(|e| e.identity_id.clone()).unwrap_or_default();
+                let got = w
+                    .tracked()
+                    .map(|e| e.identity_id.clone())
+                    .unwrap_or_default();
                 if !glob_match(want, &got) {
                     fail(format!("entity.identity: want {want}, got {got}"));
                 }
@@ -271,13 +281,20 @@ fn check_assertion(w: &mut World, a: &Value, t: f64, failures: &mut Vec<String>)
             "alert.receipt.contains" => {
                 let names: Vec<String> = v
                     .as_sequence()
-                    .map(|s| s.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                    .map(|s| {
+                        s.iter()
+                            .filter_map(|x| x.as_str().map(String::from))
+                            .collect()
+                    })
                     .unwrap_or_default();
                 match w.tracked_alert() {
                     Some(a) => {
                         for n in names {
                             if !a.receipt_names.contains(&n) {
-                                fail(format!("receipt missing term {n} (has {:?})", a.receipt_names));
+                                fail(format!(
+                                    "receipt missing term {n} (has {:?})",
+                                    a.receipt_names
+                                ));
                             }
                         }
                     }
@@ -319,15 +336,25 @@ fn check_assertion(w: &mut World, a: &Value, t: f64, failures: &mut Vec<String>)
                 let want = v.as_str().unwrap_or_default();
                 match &w.last_decision {
                     Some(d) if d.autonomy == want => {}
-                    Some(d) => fail(format!("governor.autonomy: want {want}, got {}", d.autonomy)),
+                    Some(d) => fail(format!(
+                        "governor.autonomy: want {want}, got {}",
+                        d.autonomy
+                    )),
                     None => fail("governor.autonomy: no decision".into()),
                 }
             }
             "governor.invariant_violated" => {
                 let want = v.as_str().unwrap_or_default();
                 match &w.last_decision {
-                    Some(d) if d.invariant.as_deref().map(|i| i.starts_with(want)).unwrap_or(false) => {}
-                    Some(d) => fail(format!("invariant_violated: want {want}, got {:?}", d.invariant)),
+                    Some(d)
+                        if d.invariant
+                            .as_deref()
+                            .map(|i| i.starts_with(want))
+                            .unwrap_or(false) => {}
+                    Some(d) => fail(format!(
+                        "invariant_violated: want {want}, got {:?}",
+                        d.invariant
+                    )),
                     None => fail("invariant_violated: no decision".into()),
                 }
             }
@@ -361,9 +388,10 @@ fn check_assertion(w: &mut World, a: &Value, t: f64, failures: &mut Vec<String>)
                 let want = v.as_u64().unwrap_or_default() as usize;
                 match &w.last_request_grant {
                     Some(g) if g.signature_count() == want => {}
-                    Some(g) => {
-                        fail(format!("grant.signatures: want {want}, got {}", g.signature_count()))
-                    }
+                    Some(g) => fail(format!(
+                        "grant.signatures: want {want}, got {}",
+                        g.signature_count()
+                    )),
                     None => fail("grant.signatures: no grant".into()),
                 }
             }
@@ -371,7 +399,10 @@ fn check_assertion(w: &mut World, a: &Value, t: f64, failures: &mut Vec<String>)
                 let want = v.as_str().unwrap_or_default();
                 match &w.last_request_grant {
                     Some(g) if g.authorized_by == want => {}
-                    Some(g) => fail(format!("authorized_by: want {want}, got {}", g.authorized_by)),
+                    Some(g) => fail(format!(
+                        "authorized_by: want {want}, got {}",
+                        g.authorized_by
+                    )),
                     None => fail("authorized_by: no grant".into()),
                 }
             }
@@ -385,10 +416,17 @@ fn check_assertion(w: &mut World, a: &Value, t: f64, failures: &mut Vec<String>)
             "feeds.mesh.handoff" => {
                 let want: Vec<String> = v
                     .as_sequence()
-                    .map(|s| s.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                    .map(|s| {
+                        s.iter()
+                            .filter_map(|x| x.as_str().map(String::from))
+                            .collect()
+                    })
                     .unwrap_or_default();
                 if w.mesh_handoff != want {
-                    fail(format!("mesh handoff: want {want:?}, got {:?}", w.mesh_handoff));
+                    fail(format!(
+                        "mesh handoff: want {want:?}, got {:?}",
+                        w.mesh_handoff
+                    ));
                 }
             }
             k if k.starts_with("metric.signal_to_visual_seconds") => {
@@ -493,7 +531,10 @@ fn check_at_end(w: &mut World, map: &Value, failures: &mut Vec<String>) {
             "missions_opened" => {
                 let want = v.as_u64().unwrap_or_default() as usize;
                 if w.engine.missions.len() != want {
-                    fail(format!("missions_opened: want {want}, got {}", w.engine.missions.len()));
+                    fail(format!(
+                        "missions_opened: want {want}, got {}",
+                        w.engine.missions.len()
+                    ));
                 }
             }
             "geofence_breaches" => {
@@ -511,10 +552,18 @@ fn check_at_end(w: &mut World, map: &Value, failures: &mut Vec<String>) {
             "security_events" => {
                 let want: Vec<String> = v
                     .as_sequence()
-                    .map(|s| s.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                    .map(|s| {
+                        s.iter()
+                            .filter_map(|x| x.as_str().map(String::from))
+                            .collect()
+                    })
                     .unwrap_or_default();
-                let got: Vec<String> =
-                    w.governor.security_events().iter().map(|e| e.kind.clone()).collect();
+                let got: Vec<String> = w
+                    .governor
+                    .security_events()
+                    .iter()
+                    .map(|e| e.kind.clone())
+                    .collect();
                 if got != want {
                     fail(format!("security_events: want {want:?}, got {got:?}"));
                 }
@@ -586,7 +635,9 @@ fn num_cmp(v: &Value, got: f64) -> bool {
     } else {
         ("==", s)
     };
-    let Ok(want) = rest.trim().parse::<f64>() else { return false };
+    let Ok(want) = rest.trim().parse::<f64>() else {
+        return false;
+    };
     match op {
         ">=" => got >= want,
         "<=" => got <= want,
@@ -604,7 +655,10 @@ mod tests {
     fn glob_matching() {
         assert!(glob_match("unknown:*", "unknown:7F3A"));
         assert!(!glob_match("unknown:*", "person:ana"));
-        assert!(glob_match("*41 days*", "last unexpected perimeter entity: 41 days ago"));
+        assert!(glob_match(
+            "*41 days*",
+            "last unexpected perimeter entity: 41 days ago"
+        ));
         assert!(glob_match("person:ana", "person:ana"));
         assert!(!glob_match("person:ana", "person:anaX"));
     }

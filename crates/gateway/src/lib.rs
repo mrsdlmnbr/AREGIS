@@ -71,7 +71,9 @@ impl Gateway {
     /// with an empty authority_ref is refused at the door.
     pub fn register_source(&mut self, source: RegisteredSource) -> Result<(), IngestError> {
         if source.authority_ref.trim().is_empty() {
-            return Err(IngestError::NoAuthorityRef { source_id: source.source_id });
+            return Err(IngestError::NoAuthorityRef {
+                source_id: source.source_id,
+            });
         }
         self.sources.insert(source.source_id.clone(), source);
         Ok(())
@@ -94,7 +96,9 @@ impl Gateway {
         // Defence in depth: the registry refused empty refs already, but a
         // registry bug must not become an ingestion path.
         if source.authority_ref.trim().is_empty() {
-            return Err(IngestError::NoAuthorityRef { source_id: source.source_id });
+            return Err(IngestError::NoAuthorityRef {
+                source_id: source.source_id,
+            });
         }
 
         let offset_ms = (recorded_at - raw.captured_at).num_milliseconds() as i32;
@@ -189,7 +193,11 @@ mod tests {
     fn unknown_source_is_rejected() {
         let mut gw = Gateway::new("ridgeline");
         let err = gw
-            .ingest("raw.device", raw("2026-03-14T03:11:43Z"), parse_ts("2026-03-14T03:11:43.010Z").unwrap())
+            .ingest(
+                "raw.device",
+                raw("2026-03-14T03:11:43Z"),
+                parse_ts("2026-03-14T03:11:43.010Z").unwrap(),
+            )
             .unwrap_err();
         assert!(matches!(err, IngestError::UnknownSource(_)));
     }
@@ -202,14 +210,20 @@ mod tests {
             let at = parse_ts("2026-03-14T03:11:43Z").unwrap() + chrono::Duration::seconds(i);
             gw.ingest(
                 "raw.device",
-                RawEvent { captured_at: at, ..raw("2026-03-14T03:11:43Z") },
+                RawEvent {
+                    captured_at: at,
+                    ..raw("2026-03-14T03:11:43Z")
+                },
                 at + chrono::Duration::milliseconds(8),
             )
             .unwrap();
         }
         assert!(gw.verify_topic_chain("raw.device"));
         assert_eq!(gw.topic("raw.device").len(), 5);
-        assert_eq!(gw.topic("raw.device")[0].prov.authority_ref, "estate-owner-ridgeline");
+        assert_eq!(
+            gw.topic("raw.device")[0].prov.authority_ref,
+            "estate-owner-ridgeline"
+        );
     }
 
     #[test]
@@ -221,7 +235,10 @@ mod tests {
         let (env, health) = gw
             .ingest(
                 "raw.device",
-                RawEvent { captured_at: captured, ..raw("2026-03-14T03:11:43Z") },
+                RawEvent {
+                    captured_at: captured,
+                    ..raw("2026-03-14T03:11:43Z")
+                },
                 captured + chrono::Duration::seconds(5),
             )
             .unwrap();

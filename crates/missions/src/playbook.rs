@@ -109,8 +109,10 @@ pub fn parse(yaml: &str) -> Result<Playbook, PlaybookError> {
     // A rung the ladder does not contain must fail HERE, at load — a
     // playbook file is untrusted input to this crate (G-09 at the YAML edge).
     for a in &pb.actions {
-        a.rung().map_err(|e| PlaybookError::Invalid(pb.name.clone(), e))?;
-        a.autonomy().map_err(|e| PlaybookError::Invalid(pb.name.clone(), e))?;
+        a.rung()
+            .map_err(|e| PlaybookError::Invalid(pb.name.clone(), e))?;
+        a.autonomy()
+            .map_err(|e| PlaybookError::Invalid(pb.name.clone(), e))?;
     }
     pb.roe
         .max_rung
@@ -135,7 +137,11 @@ pub struct EntityFacts {
 /// Evaluate one condition line of the mini-DSL:
 ///   `<path> == <value>` | `<path> >= <num>` | `<path> > <num>` |
 ///   `<path> in [A, B]`  | `<lhs> and <rhs>`
-pub fn eval_condition(cond: &str, facts: &EntityFacts, posture: Posture) -> Result<bool, PlaybookError> {
+pub fn eval_condition(
+    cond: &str,
+    facts: &EntityFacts,
+    posture: Posture,
+) -> Result<bool, PlaybookError> {
     if let Some((l, r)) = split_top_level_and(cond) {
         return Ok(eval_condition(l, facts, posture)? && eval_condition(r, facts, posture)?);
     }
@@ -162,7 +168,11 @@ pub fn eval_condition(cond: &str, facts: &EntityFacts, posture: Posture) -> Resu
     }
 }
 
-pub fn trigger_fires(pb: &Playbook, facts: &EntityFacts, posture: Posture) -> Result<bool, PlaybookError> {
+pub fn trigger_fires(
+    pb: &Playbook,
+    facts: &EntityFacts,
+    posture: Posture,
+) -> Result<bool, PlaybookError> {
     for cond in &pb.trigger.all {
         if !eval_condition(cond, facts, posture)? {
             return Ok(false);
@@ -244,9 +254,10 @@ mod tests {
 
     #[test]
     fn parses_the_shipped_playbook() {
-        let yaml = std::fs::read_to_string(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/../../playbooks/perimeter_breach_night.yaml"),
-        )
+        let yaml = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../playbooks/perimeter_breach_night.yaml"
+        ))
         .unwrap();
         let pb = parse(&yaml).unwrap();
         assert_eq!(pb.name, "perimeter_breach_night");
@@ -258,9 +269,10 @@ mod tests {
 
     #[test]
     fn trigger_dsl_matches_the_night_intruder() {
-        let yaml = std::fs::read_to_string(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/../../playbooks/perimeter_breach_night.yaml"),
-        )
+        let yaml = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../playbooks/perimeter_breach_night.yaml"
+        ))
         .unwrap();
         let pb = parse(&yaml).unwrap();
         assert!(trigger_fires(&pb, &facts(), Posture::Away).unwrap());
@@ -282,7 +294,11 @@ mod tests {
 
     #[test]
     fn compound_and_condition() {
-        let f = EntityFacts { dwell_seconds: 25.0, zone_class: ZoneClass::Threshold, ..facts() };
+        let f = EntityFacts {
+            dwell_seconds: 25.0,
+            zone_class: ZoneClass::Threshold,
+            ..facts()
+        };
         assert!(eval_condition(
             "entity.dwell_seconds > 20 and entity.zone.class == THRESHOLD",
             &f,

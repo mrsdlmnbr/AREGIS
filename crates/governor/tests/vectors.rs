@@ -22,12 +22,22 @@ fn fence() -> Polygon {
 }
 
 fn inside_envelope() -> Polygon {
-    Polygon::from_pairs(&[[420.0, 110.0], [450.0, 110.0], [450.0, 250.0], [420.0, 250.0]])
+    Polygon::from_pairs(&[
+        [420.0, 110.0],
+        [450.0, 110.0],
+        [450.0, 250.0],
+        [420.0, 250.0],
+    ])
 }
 
 /// G-04's envelope: clips 2 m outside the east fence line at x = 785.
 fn clipping_envelope() -> Polygon {
-    Polygon::from_pairs(&[[700.0, 100.0], [787.0, 100.0], [787.0, 120.0], [700.0, 120.0]])
+    Polygon::from_pairs(&[
+        [700.0, 100.0],
+        [787.0, 100.0],
+        [787.0, 120.0],
+        [700.0, 120.0],
+    ])
 }
 
 fn at() -> Timestamp {
@@ -72,10 +82,17 @@ fn signed(mut req: AuthorizeRequest, op: &KeyPair, credential: &str) -> Authoriz
 #[test]
 fn g01_observe_on_loop_allowed_with_one_signature() {
     let (mut gov, _) = governor();
-    let d = gov.authorize(&base_request(EscalationRung::Observe, AutonomyLevel::HumanOnLoop));
+    let d = gov.authorize(&base_request(
+        EscalationRung::Observe,
+        AutonomyLevel::HumanOnLoop,
+    ));
     match d.outcome {
         Outcome::Allow(g) => {
-            assert_eq!(g.signature_count(), 1, "OBSERVE grant carries the governor key only");
+            assert_eq!(
+                g.signature_count(),
+                1,
+                "OBSERVE grant carries the governor key only"
+            );
             assert_eq!(g.rung, EscalationRung::Observe);
             assert_eq!(g.autonomy, AutonomyLevel::HumanOnLoop);
             assert!(g.operator_signature.is_empty());
@@ -85,17 +102,30 @@ fn g01_observe_on_loop_allowed_with_one_signature() {
     }
     assert!(d.invariant_violated.is_none());
     assert!(gov.audit_chain_intact());
-    assert_eq!(gov.audit_records().len(), 1, "ALLOW writes an audit record too");
+    assert_eq!(
+        gov.audit_records().len(),
+        1,
+        "ALLOW writes an audit record too"
+    );
 }
 
 // ── G-02: ANNOUNCE, no operator signature → REQUIRE_APPROVAL ────────────────
 #[test]
 fn g02_announce_without_signature_requires_approval() {
     let (mut gov, _) = governor();
-    let d = gov.authorize(&base_request(EscalationRung::Announce, AutonomyLevel::HumanDirected));
+    let d = gov.authorize(&base_request(
+        EscalationRung::Announce,
+        AutonomyLevel::HumanDirected,
+    ));
     assert!(matches!(d.outcome, Outcome::RequireApproval { .. }));
-    assert_eq!(d.invariant_violated.as_deref(), Some("I1: operator signature required"));
-    assert!(gov.security_events().is_empty(), "an absent signature is not an attack");
+    assert_eq!(
+        d.invariant_violated.as_deref(),
+        Some("I1: operator signature required")
+    );
+    assert!(
+        gov.security_events().is_empty(),
+        "an absent signature is not an attack"
+    );
 }
 
 // ── G-03: ANNOUNCE, forged operator signature → DENY + P0 security event ────
@@ -109,7 +139,10 @@ fn g03_forged_signature_is_denied_and_paged() {
         "MERIDIAN-2", // claims a real credential, signs with the wrong key
     );
     let d = gov.authorize(&req);
-    assert!(matches!(d.outcome, Outcome::Deny { .. }), "forgery is DENY, never a retry prompt");
+    assert!(
+        matches!(d.outcome, Outcome::Deny { .. }),
+        "forgery is DENY, never a retry prompt"
+    );
     assert_eq!(gov.security_events().len(), 1);
     assert_eq!(gov.security_events()[0].kind, "forged_signature");
     assert!(gov.audit_chain_intact());
@@ -137,7 +170,10 @@ fn g04_trajectory_clipping_fence_is_denied() {
     req.trajectory_envelope = clipping_envelope();
     let d = gov.authorize(&req);
     assert!(matches!(d.outcome, Outcome::Deny { .. }));
-    assert_eq!(d.invariant_violated.as_deref(), Some("I3: trajectory leaves geofence"));
+    assert_eq!(
+        d.invariant_violated.as_deref(),
+        Some("I3: trajectory leaves geofence")
+    );
 }
 
 #[test]
@@ -147,7 +183,10 @@ fn g04b_empty_envelope_fails_closed() {
     req.trajectory_envelope = Polygon(vec![]);
     let d = gov.authorize(&req);
     assert!(matches!(d.outcome, Outcome::Deny { .. }));
-    assert_eq!(d.invariant_violated.as_deref(), Some("I3: trajectory leaves geofence"));
+    assert_eq!(
+        d.invariant_violated.as_deref(),
+        Some("I3: trajectory leaves geofence")
+    );
 }
 
 // ── G-05: policy requesting HUMAN_ON_LOOP for ANNOUNCE → rejected at load ───
@@ -174,7 +213,11 @@ fn g05_loosening_policy_rejected_at_load_last_good_kept() {
         .insert(EscalationRung::Announce, AutonomyLevel::HumanOnLoop);
     let err = gov.load_policy(loosening, at()).unwrap_err();
     assert!(matches!(err, PolicyRejection::LoosensAutonomy { .. }));
-    assert_eq!(gov.policy_version(), "prop-1.first-good", "governor runs on last-good policy");
+    assert_eq!(
+        gov.policy_version(),
+        "prop-1.first-good",
+        "governor runs on last-good policy"
+    );
 
     // And even if such a policy somehow took effect, the compiled cap would
     // still bind: an autonomous ANNOUNCE request cannot be allowed.
@@ -190,17 +233,30 @@ fn g06_chain_break_denies_everything_until_cleared() {
     let (mut gov, op) = governor();
     gov.set_log_chain_broken(true);
     for rung in EscalationRung::ALL {
-        let req = signed(base_request(rung, AutonomyLevel::HumanDirected), &op, "MERIDIAN-2");
+        let req = signed(
+            base_request(rung, AutonomyLevel::HumanDirected),
+            &op,
+            "MERIDIAN-2",
+        );
         let d = gov.authorize(&req);
         assert!(
             matches!(d.outcome, Outcome::Deny { .. }),
             "{rung:?} must be denied during a chain break — even human-directed"
         );
-        assert_eq!(d.invariant_violated.as_deref(), Some("I7: log-chain break or clock skew"));
+        assert_eq!(
+            d.invariant_violated.as_deref(),
+            Some("I7: log-chain break or clock skew")
+        );
     }
     gov.clear_log_chain_break("MERIDIAN-2", at());
-    let d = gov.authorize(&base_request(EscalationRung::Observe, AutonomyLevel::HumanOnLoop));
-    assert!(matches!(d.outcome, Outcome::Allow(_)), "clearing restores service");
+    let d = gov.authorize(&base_request(
+        EscalationRung::Observe,
+        AutonomyLevel::HumanOnLoop,
+    ));
+    assert!(
+        matches!(d.outcome, Outcome::Allow(_)),
+        "clearing restores service"
+    );
     assert!(gov.audit_chain_intact());
 }
 
@@ -208,7 +264,10 @@ fn g06_chain_break_denies_everything_until_cleared() {
 #[test]
 fn g07_replayed_grant_is_dead() {
     let (mut gov, _) = governor();
-    let d = gov.authorize(&base_request(EscalationRung::Observe, AutonomyLevel::HumanOnLoop));
+    let d = gov.authorize(&base_request(
+        EscalationRung::Observe,
+        AutonomyLevel::HumanOnLoop,
+    ));
     let g = match d.outcome {
         Outcome::Allow(g) => g,
         other => panic!("expected ALLOW, got {other:?}"),
@@ -219,14 +278,23 @@ fn g07_replayed_grant_is_dead() {
         Err(GrantRejection::Expired)
     );
     // At 29 s it is still alive — the TTL is the boundary, not luck.
-    assert!(verify_grant(&g, &gov.public_key(), &g.geofence_hash, at() + chrono::Duration::seconds(29)).is_ok());
+    assert!(verify_grant(
+        &g,
+        &gov.public_key(),
+        &g.geofence_hash,
+        at() + chrono::Duration::seconds(29)
+    )
+    .is_ok());
 }
 
 // ── G-08: grant with mismatched geofence_hash → asset rejects ───────────────
 #[test]
 fn g08_geofence_hash_mismatch_is_rejected() {
     let (mut gov, _) = governor();
-    let d = gov.authorize(&base_request(EscalationRung::Observe, AutonomyLevel::HumanOnLoop));
+    let d = gov.authorize(&base_request(
+        EscalationRung::Observe,
+        AutonomyLevel::HumanOnLoop,
+    ));
     let g = match d.outcome {
         Outcome::Allow(g) => g,
         other => panic!("expected ALLOW, got {other:?}"),
@@ -243,7 +311,10 @@ fn g08_geofence_hash_mismatch_is_rejected() {
 #[test]
 fn g08b_tampered_grant_fails_signature() {
     let (mut gov, _) = governor();
-    let d = gov.authorize(&base_request(EscalationRung::Observe, AutonomyLevel::HumanOnLoop));
+    let d = gov.authorize(&base_request(
+        EscalationRung::Observe,
+        AutonomyLevel::HumanOnLoop,
+    ));
     let g = match d.outcome {
         Outcome::Allow(g) => g,
         other => panic!("expected ALLOW, got {other:?}"),
@@ -252,18 +323,34 @@ fn g08b_tampered_grant_fails_signature() {
     let mut retargeted = g.clone();
     retargeted.asset_id = "ARGUS-1".into();
     assert_eq!(
-        verify_grant(&retargeted, &gov.public_key(), &retargeted.geofence_hash, at()),
+        verify_grant(
+            &retargeted,
+            &gov.public_key(),
+            &retargeted.geofence_hash,
+            at()
+        ),
         Err(GrantRejection::BadGovernorSignature)
     );
     // Escalate the rung inside a signed grant: refused too (the two-key check
     // fires first for rung ≥ ANNOUNCE — either way, a tampered grant is dead).
     let mut escalated = g.clone();
     escalated.rung = EscalationRung::Shadow;
-    assert!(verify_grant(&escalated, &gov.public_key(), &escalated.geofence_hash, at()).is_err());
+    assert!(verify_grant(
+        &escalated,
+        &gov.public_key(),
+        &escalated.geofence_hash,
+        at()
+    )
+    .is_err());
     let mut escalated_low = g;
     escalated_low.rung = EscalationRung::Illuminate;
     assert_eq!(
-        verify_grant(&escalated_low, &gov.public_key(), &escalated_low.geofence_hash, at()),
+        verify_grant(
+            &escalated_low,
+            &gov.public_key(),
+            &escalated_low.geofence_hash,
+            at()
+        ),
         Err(GrantRejection::BadGovernorSignature)
     );
 }
@@ -300,7 +387,11 @@ fn announce_with_valid_signature_allows_with_two_keys() {
     let d = gov.authorize(&req);
     match d.outcome {
         Outcome::Allow(g) => {
-            assert_eq!(g.signature_count(), 2, "governor + operator: the two-key model");
+            assert_eq!(
+                g.signature_count(),
+                2,
+                "governor + operator: the two-key model"
+            );
             assert_eq!(g.authorized_by, "MERIDIAN-2");
             assert!(verify_grant(&g, &gov.public_key(), &g.geofence_hash, at()).is_ok());
         }
@@ -316,7 +407,10 @@ fn i5_low_confidence_requires_approval() {
     req.entity_confidence = 0.60;
     let d = gov.authorize(&req);
     assert!(matches!(d.outcome, Outcome::RequireApproval { .. }));
-    assert_eq!(d.invariant_violated.as_deref(), Some("I5: confidence below τ_rung"));
+    assert_eq!(
+        d.invariant_violated.as_deref(),
+        Some("I5: confidence below τ_rung")
+    );
 }
 
 // ── I6: a faulted asset is never tasked ─────────────────────────────────────
@@ -327,5 +421,8 @@ fn i6_faulted_asset_is_denied() {
     req.asset_state = AssetState::AssetFault;
     let d = gov.authorize(&req);
     assert!(matches!(d.outcome, Outcome::Deny { .. }));
-    assert_eq!(d.invariant_violated.as_deref(), Some("I6: asset not READY/ON_STATION"));
+    assert_eq!(
+        d.invariant_violated.as_deref(),
+        Some("I6: asset not READY/ON_STATION")
+    );
 }

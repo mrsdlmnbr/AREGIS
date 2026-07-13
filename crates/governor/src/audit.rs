@@ -40,7 +40,11 @@ pub struct AuditChain {
 
 impl AuditChain {
     pub fn append(&mut self, mut record: AuditRecord) -> String {
-        record.prev_hash = self.records.last().map(|r| r.hash.clone()).unwrap_or_default();
+        record.prev_hash = self
+            .records
+            .last()
+            .map(|r| r.hash.clone())
+            .unwrap_or_default();
         record.hash = record.content_hash();
         let id = record.id.clone();
         self.records.push(record);

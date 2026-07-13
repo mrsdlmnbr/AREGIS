@@ -119,7 +119,18 @@ fn scenario_strategy() -> impl Strategy<Value = Scenario> {
         prop::bool::weighted(0.1),
     )
         .prop_map(
-            |(rung, autonomy, asset_state, posture, envelope, confidence, sig, chain_broken, clock_skew, degraded)| Scenario {
+            |(
+                rung,
+                autonomy,
+                asset_state,
+                posture,
+                envelope,
+                confidence,
+                sig,
+                chain_broken,
+                clock_skew,
+                degraded,
+            )| Scenario {
                 rung,
                 autonomy,
                 asset_state,
@@ -164,7 +175,8 @@ fn run(s: &Scenario) -> (Governor, AuthorizeRequest, governor::Decision) {
         SigKind::None => {}
         SigKind::Valid => {
             req.operator_credential_id = Some("MERIDIAN-2".into());
-            req.operator_signature = Some(op.sign(&approval_message(&req.mission_id, req.rung, req.at)));
+            req.operator_signature =
+                Some(op.sign(&approval_message(&req.mission_id, req.rung, req.at)));
         }
         SigKind::Forged => {
             req.operator_credential_id = Some("MERIDIAN-2".into());

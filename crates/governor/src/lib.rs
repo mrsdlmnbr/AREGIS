@@ -51,6 +51,9 @@ pub struct AuthorizeRequest {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+// The grant makes Allow large; boxing it would put an allocation between the
+// decision and its capability for no safety gain. Deliberate.
+#[allow(clippy::large_enum_variant)]
 pub enum Outcome {
     Allow(ActionGrant),
     RequireApproval { reason: String },
@@ -279,7 +282,9 @@ impl Governor {
             return self.finish(
                 decision_id,
                 req,
-                Outcome::Deny { reason: "governor degraded — fail closed".into() },
+                Outcome::Deny {
+                    reason: "governor degraded — fail closed".into(),
+                },
                 Some("I8: governor degraded".into()),
             );
         }
@@ -308,7 +313,9 @@ impl Governor {
             return self.finish(
                 decision_id,
                 req,
-                Outcome::Deny { reason: "trajectory envelope leaves the geofence".into() },
+                Outcome::Deny {
+                    reason: "trajectory envelope leaves the geofence".into(),
+                },
                 Some("I3: trajectory leaves geofence".into()),
             );
         }
@@ -390,9 +397,14 @@ impl Governor {
         // ── ALLOW: mint the grant. TTL ≤ 30 s; two signatures for rung ≥
         // ANNOUNCE (the two-key model, spec §12.3).
         self.grant_seq += 1;
-        let granted_autonomy =
-            if capped { AutonomyLevel::HumanDirected } else { req.autonomy_requested };
-        let authorized_by = operator_verified.clone().unwrap_or_else(|| req.rule_id.clone());
+        let granted_autonomy = if capped {
+            AutonomyLevel::HumanDirected
+        } else {
+            req.autonomy_requested
+        };
+        let authorized_by = operator_verified
+            .clone()
+            .unwrap_or_else(|| req.rule_id.clone());
         let mut g = ActionGrant {
             grant_id: format!("grant-{:06}", self.grant_seq),
             mission_id: req.mission_id.clone(),
@@ -435,7 +447,10 @@ impl Governor {
             "authorize:{}:{}{}",
             req.rung.name(),
             outcome.name(),
-            invariant.as_deref().map(|i| format!(":{i}")).unwrap_or_default()
+            invariant
+                .as_deref()
+                .map(|i| format!(":{i}"))
+                .unwrap_or_default()
         );
         let audit_record_id = self.audit_append(
             &req.mission_id,
@@ -445,7 +460,12 @@ impl Governor {
             req.entity_confidence,
             req.at,
         );
-        Decision { decision_id, outcome, invariant_violated: invariant, audit_record_id }
+        Decision {
+            decision_id,
+            outcome,
+            invariant_violated: invariant,
+            audit_record_id,
+        }
     }
 
     fn audit_append(

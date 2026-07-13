@@ -22,7 +22,9 @@ pub struct SimClock {
 
 impl SimClock {
     pub fn new(start: Timestamp) -> Self {
-        Self { now: Cell::new(start) }
+        Self {
+            now: Cell::new(start),
+        }
     }
 
     pub fn set(&self, t: Timestamp) {

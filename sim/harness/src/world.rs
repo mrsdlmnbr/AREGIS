@@ -39,6 +39,7 @@ pub struct LastDecision {
 #[derive(Debug, Clone)]
 pub struct AlertView {
     pub id: String,
+    #[allow(dead_code)] // kept for debug printing / future console feed
     pub entity_id: String,
     pub severity: i32,
     pub score: f64,
@@ -90,7 +91,12 @@ struct FleeState {
 }
 
 impl World {
-    pub fn new(fixture: Fixture, scenario: Scenario, bin_dir: PathBuf, out_dir: PathBuf) -> Result<Self> {
+    pub fn new(
+        fixture: Fixture,
+        scenario: Scenario,
+        bin_dir: PathBuf,
+        out_dir: PathBuf,
+    ) -> Result<Self> {
         let start = parse_ts(&scenario.start_time).context("scenario start_time")?;
         let posture: Posture = scenario.posture.parse().map_err(|e| anyhow!("{e}"))?;
         let geofence = Polygon::from_pairs(&fixture.property.geofence);
@@ -138,7 +144,9 @@ impl World {
 
         // The real Governor with the fixture's (sim-only) keys and the
         // property's tightened confidence policy.
-        let mut governor = Governor::new(KeyPair::from_seed_hex(&fixture.appliance.governor_seed_hex)?);
+        let mut governor = Governor::new(KeyPair::from_seed_hex(
+            &fixture.appliance.governor_seed_hex,
+        )?);
         let mut operator_keys = BTreeMap::new();
         for op in &fixture.operators {
             let kp = KeyPair::from_seed_hex(&op.ed25519_seed_hex)?;
@@ -237,7 +245,8 @@ impl World {
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
                 let yaml = std::fs::read_to_string(&path)?;
-                playbooks.push(missions::playbook::parse(&yaml).with_context(|| format!("{path:?}"))?);
+                playbooks
+                    .push(missions::playbook::parse(&yaml).with_context(|| format!("{path:?}"))?);
             }
         }
         self.engine = MissionEngine::new(playbooks);
@@ -246,10 +255,6 @@ impl World {
 
     pub fn abs_time(&self, t: f64) -> Timestamp {
         self.start + chrono::Duration::microseconds((t * 1e6).round() as i64)
-    }
-
-    pub fn rel_time(&self, at: Timestamp) -> f64 {
-        (at - self.start).num_microseconds().unwrap_or(0) as f64 / 1e6
     }
 
     // ── time stepping ────────────────────────────────────────────────────────
@@ -290,7 +295,9 @@ impl World {
                         .and_then(|e| self.resolver.entity(e))
                         .map(|e| e.position);
                     if let Some(station) = station {
-                        if let Some(asset) = self.assets.iter_mut().find(|a| a.id == action.asset_id) {
+                        if let Some(asset) =
+                            self.assets.iter_mut().find(|a| a.id == action.asset_id)
+                        {
                             // Onboard verification happens inside.
                             let _ = asset.task_observe(&grant, station, now);
                         }
@@ -322,8 +329,12 @@ impl World {
     }
 
     fn advance_flee(&mut self, now: Timestamp) {
-        let Some(eid) = self.tracked_entity.clone() else { return };
-        let Some(entity_pos) = self.resolver.entity(&eid).map(|e| e.position) else { return };
+        let Some(eid) = self.tracked_entity.clone() else {
+            return;
+        };
+        let Some(entity_pos) = self.resolver.entity(&eid).map(|e| e.position) else {
+            return;
+        };
         let mut remaining = FLEE_SPEED_MPS * STEP_SECONDS;
         let mut pos = entity_pos;
         let flee = self.flee.as_mut().unwrap();
@@ -335,7 +346,10 @@ impl World {
                 remaining -= d;
                 flee.next_waypoint += 1;
             } else {
-                pos = Point::new(pos.x + (wp.x - pos.x) / d * remaining, pos.y + (wp.y - pos.y) / d * remaining);
+                pos = Point::new(
+                    pos.x + (wp.x - pos.x) / d * remaining,
+                    pos.y + (wp.y - pos.y) / d * remaining,
+                );
                 remaining = 0.0;
             }
         }
@@ -361,14 +375,19 @@ impl World {
             e if e.event.as_deref() == Some("motion") => self.apply_motion(e, at),
             e if e.event.as_deref() == Some("detection") => self.apply_detection(e, at),
             e if e.entity_reaches.is_some() => self.apply_entity_reaches(e, at),
-            e if e.action.as_deref() == Some("request_approve") => self.apply_request_approve(e, at),
+            e if e.action.as_deref() == Some("request_approve") => {
+                self.apply_request_approve(e, at)
+            }
             e if e.entity_mode.as_deref() == Some("FLEE") => self.apply_flee(e, at),
             other => bail!("unhandled script event at t={}: {other:?}", ev.t),
         }
     }
 
     fn apply_motion(&mut self, ev: &ScriptEvent, at: Timestamp) -> Result<()> {
-        let device = ev.device.clone().ok_or_else(|| anyhow!("motion without device"))?;
+        let device = ev
+            .device
+            .clone()
+            .ok_or_else(|| anyhow!("motion without device"))?;
         let zone = ev.zone.clone().unwrap_or_default();
         self.gateway
             .ingest(
@@ -387,15 +406,22 @@ impl World {
     }
 
     fn apply_detection(&mut self, ev: &ScriptEvent, at: Timestamp) -> Result<()> {
-        let device = ev.device.clone().ok_or_else(|| anyhow!("detection without device"))?;
+        let device = ev
+            .device
+            .clone()
+            .ok_or_else(|| anyhow!("detection without device"))?;
         let class: ObjectClass = ev
             .class
             .as_deref()
             .ok_or_else(|| anyhow!("detection without class"))?
             .parse()
             .map_err(|e| anyhow!("{e:?}"))?;
-        let wp = ev.world_position.ok_or_else(|| anyhow!("detection without world_position"))?;
-        let confidence = ev.confidence.ok_or_else(|| anyhow!("detection without confidence"))?;
+        let wp = ev
+            .world_position
+            .ok_or_else(|| anyhow!("detection without world_position"))?;
+        let confidence = ev
+            .confidence
+            .ok_or_else(|| anyhow!("detection without confidence"))?;
 
         self.sighting_seq += 1;
         let sighting_id = format!("sig-{:04}", self.sighting_seq);
@@ -445,7 +471,8 @@ impl World {
             .tracked_entity
             .clone()
             .ok_or_else(|| anyhow!("entity_reaches before any detection"))?;
-        self.resolver.advance_entity(&eid, Point::new(pos[0], pos[1]), at);
+        self.resolver
+            .advance_entity(&eid, Point::new(pos[0], pos[1]), at);
         if ev.then.as_deref() == Some("dwell") {
             self.dwell_mode = true;
             self.last_dwell_tick = Some(at);
@@ -455,14 +482,20 @@ impl World {
     }
 
     fn apply_request_approve(&mut self, ev: &ScriptEvent, at: Timestamp) -> Result<()> {
-        let operator = ev.operator.clone().ok_or_else(|| anyhow!("approve without operator"))?;
+        let operator = ev
+            .operator
+            .clone()
+            .ok_or_else(|| anyhow!("approve without operator"))?;
         let rung: EscalationRung = ev
             .rung
             .as_deref()
             .ok_or_else(|| anyhow!("approve without rung"))?
             .parse()
             .map_err(|e| anyhow!("{e:?}"))?;
-        let mission_id = self.mission_id.clone().unwrap_or_else(|| "msn-000001".to_string());
+        let mission_id = self
+            .mission_id
+            .clone()
+            .unwrap_or_else(|| "msn-000001".to_string());
 
         // The hold-to-authorize signature: real for `valid`, wrong-key for
         // `forged` (G-03 as a full-stack event).
@@ -501,7 +534,12 @@ impl World {
         let envelope = if rung == EscalationRung::Shadow {
             let mut pts = vec![asset_pos];
             if let Some(f) = &self.flee {
-                pts.extend(f.path.iter().copied().skip(f.next_waypoint.saturating_sub(1)));
+                pts.extend(
+                    f.path
+                        .iter()
+                        .copied()
+                        .skip(f.next_waypoint.saturating_sub(1)),
+                );
                 pts.extend(f.path.iter().copied());
             }
             bbox_polygon(&pts, RETASK_ENVELOPE_BUFFER_M)
@@ -554,7 +592,10 @@ impl World {
             .map(|p| Point::new(p[0], p[1]))
             .collect();
         self.dwell_mode = false;
-        self.flee = Some(FleeState { path: path.clone(), next_waypoint: 0 });
+        self.flee = Some(FleeState {
+            path: path.clone(),
+            next_waypoint: 0,
+        });
 
         // The mission executor asks to keep following. The predicted pursuit
         // trajectory leaves the fence, so the Governor denies (I3), the asset
@@ -583,7 +624,11 @@ impl World {
                 rung: EscalationRung::Observe,
                 autonomy_requested: aegis_common::types::AutonomyLevel::HumanSupervised,
                 asset_id: asset_id.clone(),
-                asset_state: if asset_state == AssetState::Enroute { AssetState::OnStation } else { asset_state },
+                asset_state: if asset_state == AssetState::Enroute {
+                    AssetState::OnStation
+                } else {
+                    asset_state
+                },
                 zone_id: "pursuit".into(),
                 trajectory_envelope: envelope,
                 geofence: self.geofence.clone(),
@@ -632,7 +677,10 @@ impl World {
             .fixture
             .mesh_nodes
             .iter()
-            .filter(|n| Point::new(n.position[0], n.position[1]).dist(&cross) <= self.fixture.mesh_handoff_range_m)
+            .filter(|n| {
+                Point::new(n.position[0], n.position[1]).dist(&cross)
+                    <= self.fixture.mesh_handoff_range_m
+            })
             .map(|n| n.id.clone())
             .collect();
         nodes.sort();
@@ -662,7 +710,7 @@ impl World {
         };
 
         let local_hour = at.hour(); // fixture properties run UTC in M0
-        let night = local_hour >= 22 || local_hour < 6;
+        let night = !(6..22).contains(&local_hour);
         let pol = &self.fixture.pol_baseline;
         let anomaly = match (facts.class, facts.identity_known) {
             (ObjectClass::Animal, _) => pol.anomaly.animal,
@@ -705,7 +753,9 @@ impl World {
         // Playbook escalation rules (e.g. dwell at a threshold → severity 5).
         for pb in self.engine.playbooks().to_vec() {
             for rule in &pb.escalate {
-                if missions::playbook::eval_condition(&rule.condition, &facts, self.posture).unwrap_or(false) {
+                if missions::playbook::eval_condition(&rule.condition, &facts, self.posture)
+                    .unwrap_or(false)
+                {
                     if let Some(sev) = rule.then.strip_prefix("severity = ") {
                         if let Ok(sev) = sev.trim().parse::<i32>() {
                             output.severity = output.severity.max(sev.min(5));
@@ -736,7 +786,10 @@ impl World {
 
         // Playbook trigger — once per entity.
         if !self.playbook_fired_for.contains(&entity_id.to_string()) {
-            let fired = self.engine.matching_playbook(&facts, self.posture).map(|pb| pb.name.clone());
+            let fired = self
+                .engine
+                .matching_playbook(&facts, self.posture)
+                .map(|pb| pb.name.clone());
             if let Some(pb_name) = fired {
                 self.playbook_fired_for.push(entity_id.to_string());
                 self.open_mission_for(&pb_name, &alert_id, entity_id, &facts, at)?;
@@ -776,7 +829,11 @@ impl World {
             .entity(entity_id)
             .map(|e| e.position)
             .ok_or_else(|| anyhow!("no entity"))?;
-        let zone_id = self.resolver.entity(entity_id).map(|e| e.zone_id.clone()).unwrap_or_default();
+        let zone_id = self
+            .resolver
+            .entity(entity_id)
+            .map(|e| e.zone_id.clone())
+            .unwrap_or_default();
         let envelope = bbox_polygon(&[dock, entity_pos], LAUNCH_ENVELOPE_BUFFER_M);
 
         let mid = self.engine.open_mission(
@@ -797,7 +854,9 @@ impl World {
             if let Some(a) = m.actions.first() {
                 self.last_decision = Some(LastDecision {
                     outcome: match a.state {
-                        missions::ActionState::CountingDown | missions::ActionState::Executing => "ALLOW".into(),
+                        missions::ActionState::CountingDown | missions::ActionState::Executing => {
+                            "ALLOW".into()
+                        }
                         missions::ActionState::AwaitingApproval => "REQUIRE_APPROVAL".into(),
                         missions::ActionState::Denied => "DENY".into(),
                         _ => "NONE".into(),
@@ -860,7 +919,12 @@ impl World {
             sealed_at: at.to_rfc3339_opts(chrono::SecondsFormat::Micros, true),
             sealed_by: format!("appliance:{}", self.fixture.property.id),
             event_ids: event_ids.to_vec(),
-            audit_record_ids: self.governor.audit_records().iter().map(|r| r.id.clone()).collect(),
+            audit_record_ids: self
+                .governor
+                .audit_records()
+                .iter()
+                .map(|r| r.id.clone())
+                .collect(),
             media: self
                 .frames
                 .iter()
@@ -887,14 +951,20 @@ impl World {
             .write_all(&serde_json::to_vec(&req)?)?;
         let out = child.wait_with_output()?;
         if !out.status.success() {
-            bail!("evidence-cli seal failed: {}", String::from_utf8_lossy(&out.stderr));
+            bail!(
+                "evidence-cli seal failed: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
         }
         self.evidence_bundle = Some(bundle_dir);
         Ok(())
     }
 
     pub fn verify_evidence(&self) -> Result<VerifyResult> {
-        let bundle = self.evidence_bundle.as_ref().ok_or_else(|| anyhow!("no evidence bundle"))?;
+        let bundle = self
+            .evidence_bundle
+            .as_ref()
+            .ok_or_else(|| anyhow!("no evidence bundle"))?;
         let out = Command::new(self.bin_dir.join("evidence-verify"))
             .arg(bundle)
             .output()
@@ -917,7 +987,10 @@ impl World {
             .write_all(&serde_json::to_vec(input)?)?;
         let out = child.wait_with_output()?;
         if !out.status.success() {
-            bail!("threat-cli failed: {}", String::from_utf8_lossy(&out.stderr));
+            bail!(
+                "threat-cli failed: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
         }
         Ok(serde_json::from_slice(&out.stdout)?)
     }
@@ -929,11 +1002,15 @@ impl World {
     }
 
     pub fn tracked_alert(&self) -> Option<&AlertView> {
-        self.tracked_entity.as_ref().and_then(|e| self.alerts.get(e))
+        self.tracked_entity
+            .as_ref()
+            .and_then(|e| self.alerts.get(e))
     }
 
     pub fn tracked(&self) -> Option<&resolver::Entity> {
-        self.tracked_entity.as_ref().and_then(|e| self.resolver.entity(e))
+        self.tracked_entity
+            .as_ref()
+            .and_then(|e| self.resolver.entity(e))
     }
 
     pub fn geofence(&self) -> &Polygon {

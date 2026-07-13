@@ -29,6 +29,9 @@ mod tests {
     #[test]
     fn wire_rung_has_no_seven() {
         assert!(v1::EscalationRung::try_from(7).is_err());
-        assert_eq!(v1::EscalationRung::try_from(6).unwrap(), v1::EscalationRung::Handoff);
+        assert_eq!(
+            v1::EscalationRung::try_from(6).unwrap(),
+            v1::EscalationRung::Handoff
+        );
     }
 }

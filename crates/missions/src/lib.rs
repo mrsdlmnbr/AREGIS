@@ -150,7 +150,10 @@ impl MissionEngine {
             actions: Vec::new(),
         };
 
-        let first = pb.actions.first().expect("playbook-lint guarantees at least one action");
+        let first = pb
+            .actions
+            .first()
+            .expect("playbook-lint guarantees at least one action");
         let rung = first.rung().expect("validated at load");
         let autonomy = first.autonomy().expect("validated at load");
         let abort_window = first.abort_window_seconds.unwrap_or(0.0);
@@ -172,7 +175,12 @@ impl MissionEngine {
             operator_credential_id: None,
             operator_signature: None,
             policy_version: String::new(),
-            rule_id: format!("playbook:{}:v{}:{}", pb.name, pb.version, rung.name().to_lowercase()),
+            rule_id: format!(
+                "playbook:{}:v{}:{}",
+                pb.name,
+                pb.version,
+                rung.name().to_lowercase()
+            ),
         };
 
         let action = match authorizer.authorize(&req) {
@@ -208,7 +216,9 @@ impl MissionEngine {
                         asset_id: asset_id.to_string(),
                         state: ActionState::CountingDown,
                         abort_window_seconds: abort_window,
-                        execute_at: Some(at + chrono::Duration::microseconds((abort_window * 1e6) as i64)),
+                        execute_at: Some(
+                            at + chrono::Duration::microseconds((abort_window * 1e6) as i64),
+                        ),
                         authorized_by: grant.authorized_by.clone(),
                         grant: Some(grant),
                         decision_id: decision.decision_id,
@@ -388,7 +398,12 @@ mod tests {
     }
 
     pub(crate) fn envelope() -> Polygon {
-        Polygon::from_pairs(&[[420.0, 110.0], [450.0, 110.0], [450.0, 250.0], [420.0, 250.0]])
+        Polygon::from_pairs(&[
+            [420.0, 110.0],
+            [450.0, 110.0],
+            [450.0, 250.0],
+            [420.0, 250.0],
+        ])
     }
 
     pub(crate) fn facts() -> EntityFacts {
@@ -414,7 +429,7 @@ mod tests {
     #[test]
     fn abort_window_flow() {
         let key = aegis_common::crypto::KeyPair::from_seed_hex(
-            "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7",
+            "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7", // ARCHLINT-ALLOW: test-only
         )
         .unwrap();
         let mut gov = governor::Governor::new(key);
@@ -447,7 +462,7 @@ mod tests {
     #[test]
     fn abort_kills_the_grant() {
         let key = aegis_common::crypto::KeyPair::from_seed_hex(
-            "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7",
+            "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7", // ARCHLINT-ALLOW: test-only
         )
         .unwrap();
         let mut gov = governor::Governor::new(key);

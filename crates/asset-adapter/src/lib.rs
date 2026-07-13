@@ -39,7 +39,11 @@ pub struct Watchdog {
 
 impl Default for Watchdog {
     fn default() -> Self {
-        Self { link_loss_limit_s: 5.0, battery_floor: 0.15, link_lost_since: None }
+        Self {
+            link_loss_limit_s: 5.0,
+            battery_floor: 0.15,
+            link_lost_since: None,
+        }
     }
 }
 
@@ -131,7 +135,12 @@ impl SimAsset {
 
     /// Task the asset toward a station point. Only callable with a verified
     /// grant (the adapter enforces it; the asset re-verifies).
-    pub fn task_observe(&mut self, grant: &ActionGrant, station: Point, now: Timestamp) -> Result<(), TaskRejection> {
+    pub fn task_observe(
+        &mut self,
+        grant: &ActionGrant,
+        station: Point,
+        now: Timestamp,
+    ) -> Result<(), TaskRejection> {
         self.verify_onboard(grant, now)?;
         self.active_grant_expiry = Some(grant.not_after);
         // Clip the station to the fence: the asset never even AIMS outside.
@@ -145,7 +154,11 @@ impl SimAsset {
 
     /// ANNOUNCE through the asset's annunciator. Two-key verified onboard:
     /// this call is the reason G-03 matters.
-    pub fn task_announce(&mut self, grant: &ActionGrant, now: Timestamp) -> Result<(), TaskRejection> {
+    pub fn task_announce(
+        &mut self,
+        grant: &ActionGrant,
+        now: Timestamp,
+    ) -> Result<(), TaskRejection> {
         self.verify_onboard(grant, now)?;
         if grant.rung != EscalationRung::Announce {
             return Err(TaskRejection::RungNotPermitted(grant.rung));
@@ -175,13 +188,20 @@ impl SimAsset {
             || self
                 .watchdog
                 .link_lost_since
-                .map(|t| (now - t).num_milliseconds() as f64 / 1000.0 > self.watchdog.link_loss_limit_s)
+                .map(|t| {
+                    (now - t).num_milliseconds() as f64 / 1000.0 > self.watchdog.link_loss_limit_s
+                })
                 .unwrap_or(false)
             || self
                 .active_grant_expiry
                 .map(|exp| now > exp && self.state == AssetState::Enroute)
                 .unwrap_or(false);
-        if watchdog_fired && matches!(self.state, AssetState::Enroute | AssetState::OnStation | AssetState::Launching) {
+        if watchdog_fired
+            && matches!(
+                self.state,
+                AssetState::Enroute | AssetState::OnStation | AssetState::Launching
+            )
+        {
             self.recall();
         }
 
@@ -237,7 +257,10 @@ impl SimAsset {
         if self.onboard_geofence.contains(&target) {
             return target;
         }
-        match self.onboard_geofence.first_boundary_crossing(&self.position, &target) {
+        match self
+            .onboard_geofence
+            .first_boundary_crossing(&self.position, &target)
+        {
             Some(t) => {
                 // Hold 2 m inside the line, never on it.
                 let t_hold = (t - 2.0 / self.position.dist(&target).max(1e-9)).max(0.0);
@@ -272,8 +295,8 @@ mod tests {
     use aegis_common::types::{AutonomyLevel, Posture};
     use governor::{AuthorizeRequest, Governor, Outcome};
 
-    const GOVERNOR_SEED: &str = "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7";
-    const FORGER_SEED: &str = "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb";
+    const GOVERNOR_SEED: &str = "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7"; // ARCHLINT-ALLOW: test-only
+    const FORGER_SEED: &str = "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"; // ARCHLINT-ALLOW: test-only
 
     fn fence() -> Polygon {
         Polygon::from_pairs(&[[15.0, 15.0], [785.0, 15.0], [785.0, 385.0], [15.0, 385.0]])
@@ -336,8 +359,13 @@ mod tests {
         let mut a = asset(&gov); // asset holds the REAL governor's key
         let forged = observe_grant(&mut fake_gov);
         let now = parse_ts("2026-03-14T03:11:46Z").unwrap();
-        let err = a.task_observe(&forged, Point::new(440.0, 240.0), now).unwrap_err();
-        assert_eq!(err, TaskRejection::Grant(GrantRejection::BadGovernorSignature));
+        let err = a
+            .task_observe(&forged, Point::new(440.0, 240.0), now)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            TaskRejection::Grant(GrantRejection::BadGovernorSignature)
+        );
         assert_eq!(a.state, AssetState::Docked, "and it did not move");
     }
 
@@ -376,7 +404,10 @@ mod tests {
         }
         assert!(a.geofence_hold);
         assert!(a.optics_masked);
-        assert!(a.onboard_geofence.contains(&a.position), "held inside, forever");
+        assert!(
+            a.onboard_geofence.contains(&a.position),
+            "held inside, forever"
+        );
         assert_eq!(a.geofence_breaches, 0);
     }
 

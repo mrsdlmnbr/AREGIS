@@ -30,7 +30,9 @@ impl KeyPair {
         let seed: [u8; 32] = bytes
             .try_into()
             .map_err(|_| CryptoError::BadSeed("seed must be 32 bytes".into()))?;
-        Ok(Self { signing: SigningKey::from_bytes(&seed) })
+        Ok(Self {
+            signing: SigningKey::from_bytes(&seed),
+        })
     }
 
     pub fn sign(&self, msg: &[u8]) -> Vec<u8> {
@@ -54,8 +56,8 @@ pub fn verify(pubkey: &[u8], msg: &[u8], sig: &[u8]) -> Result<(), CryptoError> 
 mod tests {
     use super::*;
 
-    const SEED_A: &str = "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60";
-    const SEED_B: &str = "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb";
+    const SEED_A: &str = "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"; // ARCHLINT-ALLOW: test-only
+    const SEED_B: &str = "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"; // ARCHLINT-ALLOW: test-only
 
     #[test]
     fn sign_verify_roundtrip() {

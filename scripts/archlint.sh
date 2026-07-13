@@ -58,18 +58,25 @@ fi
 
 # ── 5. There is no rung 7 anywhere (spec §3.1, CLAUDE.md rule 3) ─────────────
 # The six rungs, and only the six rungs, may appear as escalation values.
+# Tests that PROVE a seventh rung is rejected are excluded by path or carry
+# an explicit ARCHLINT-ALLOW on the line.
 HITS=$(grep -RnEi 'RUNG_(FORCE|SEVEN|7)|EscalationRung::(Force|Seven)|"FORCE"' \
        crates/ services/ py/ tools/ sim/ playbooks/ 2>/dev/null \
+       | grep -vE '(/tests/|_test\.go|_test\.rs|/testdata/|test_)' \
        | grep -v 'ARCHLINT-ALLOW' || true)
 if [[ -n "$HITS" ]]; then
   err "a seventh rung / force capability appears in the tree (THERE IS NO RUNG 7):"$'\n'"$HITS"
 fi
 
-# ── 6. Sim-only key seeds stay in sim/ ───────────────────────────────────────
-HITS=$(grep -RlnE 'seed_hex' crates/ services/ tools/ py/ deploy/ playbooks/ 2>/dev/null \
-       | grep -vE '(_test\.go|/tests/|_test\.rs|test_)' | grep -v 'ARCHLINT-ALLOW' || true)
+# ── 6. Sim-only key seed MATERIAL stays in sim fixtures and tests ────────────
+# Matches literal 32-byte hex strings (a seed on disk), not the seed-handling
+# APIs. Production keys live in the HSM and never appear as literals anywhere
+# (spec §19).
+HITS=$(grep -RnE "[\"'][0-9a-fA-F]{64}[\"']" crates/ services/ tools/ py/ deploy/ playbooks/ 2>/dev/null \
+       | grep -vE '(/tests/|_test\.go|_test\.rs|/testdata/|test_)' \
+       | grep -v 'ARCHLINT-ALLOW' || true)
 if [[ -n "$HITS" ]]; then
-  err "key seed material outside sim fixtures/tests (spec §19 — keys live in the HSM):"$'\n'"$HITS"
+  err "literal key seed outside sim fixtures/tests (spec §19 — keys live in the HSM):"$'\n'"$HITS"
 fi
 
 if [[ "$fail" -ne 0 ]]; then

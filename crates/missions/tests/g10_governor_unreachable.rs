@@ -39,8 +39,12 @@ fn g10_governor_unreachable_fails_closed() {
     };
     let at = parse_ts("2026-03-14T03:11:45.5Z").unwrap();
     let fence = Polygon::from_pairs(&[[15.0, 15.0], [785.0, 15.0], [785.0, 385.0], [15.0, 385.0]]);
-    let envelope =
-        Polygon::from_pairs(&[[420.0, 110.0], [450.0, 110.0], [450.0, 250.0], [420.0, 250.0]]);
+    let envelope = Polygon::from_pairs(&[
+        [420.0, 110.0],
+        [450.0, 110.0],
+        [450.0, 250.0],
+        [420.0, 250.0],
+    ]);
 
     let mid = engine.open_mission(
         &mut DeadGovernor,

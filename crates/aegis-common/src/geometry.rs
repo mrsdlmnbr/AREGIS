@@ -176,10 +176,20 @@ mod tests {
 
     #[test]
     fn polygon_containment() {
-        let inner = Polygon::from_pairs(&[[420.0, 110.0], [450.0, 110.0], [450.0, 250.0], [420.0, 250.0]]);
+        let inner = Polygon::from_pairs(&[
+            [420.0, 110.0],
+            [450.0, 110.0],
+            [450.0, 250.0],
+            [420.0, 250.0],
+        ]);
         assert!(fence().contains_polygon(&inner));
         // Clips 2 m outside the east fence → not contained (G-04).
-        let clipping = Polygon::from_pairs(&[[700.0, 100.0], [787.0, 100.0], [787.0, 120.0], [700.0, 120.0]]);
+        let clipping = Polygon::from_pairs(&[
+            [700.0, 100.0],
+            [787.0, 100.0],
+            [787.0, 120.0],
+            [700.0, 120.0],
+        ]);
         assert!(!fence().contains_polygon(&clipping));
         // Empty envelope: fail closed.
         assert!(!fence().contains_polygon(&Polygon(vec![])));

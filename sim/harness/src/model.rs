@@ -1,5 +1,9 @@
 //! Fixture and scenario file models. These are the deterministic inputs to
 //! the replay harness — parse strictly, fail loudly.
+//!
+//! Several parsed fields are not (yet) read by the harness; they exist so the
+//! full file shape is validated at load rather than silently ignored.
+#![allow(dead_code)]
 
 use serde::Deserialize;
 use std::collections::BTreeMap;

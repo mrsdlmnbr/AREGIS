@@ -96,7 +96,8 @@ mod tests {
         p.version = "v2".into();
         p.max_autonomy_by_rung
             .insert(EscalationRung::Observe, AutonomyLevel::HumanDirected);
-        p.min_confidence_by_rung.insert(EscalationRung::Handoff, 0.99);
+        p.min_confidence_by_rung
+            .insert(EscalationRung::Handoff, 0.99);
         assert_eq!(validate(&p), Ok(()));
     }
 
@@ -104,7 +105,8 @@ mod tests {
     fn loosening_confidence_is_rejected() {
         let mut p = Policy::compiled_default();
         p.version = "v3".into();
-        p.min_confidence_by_rung.insert(EscalationRung::Announce, 0.5);
+        p.min_confidence_by_rung
+            .insert(EscalationRung::Announce, 0.5);
         assert!(matches!(
             validate(&p),
             Err(PolicyRejection::LowersConfidence { .. })

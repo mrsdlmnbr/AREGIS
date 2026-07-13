@@ -96,6 +96,10 @@ pub fn verify_grant(
     if grant.rung.requires_human_signature() && grant.operator_signature.is_empty() {
         return Err(GrantRejection::MissingOperatorSignature);
     }
-    crypto::verify(governor_pubkey, &grant.signing_bytes(), &grant.governor_signature)
-        .map_err(|_| GrantRejection::BadGovernorSignature)
+    crypto::verify(
+        governor_pubkey,
+        &grant.signing_bytes(),
+        &grant.governor_signature,
+    )
+    .map_err(|_| GrantRejection::BadGovernorSignature)
 }

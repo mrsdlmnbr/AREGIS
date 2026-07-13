@@ -332,12 +332,12 @@ mod tests {
     /// G-09: a rung value above HANDOFF fails to deserialise. The enum has no
     /// such value and this test proves the type does not exist.
     #[test]
-    fn g09_no_rung_seven() {
+    fn g09_no_rung_above_handoff() {
         assert!(EscalationRung::try_from(7).is_err());
         assert!(EscalationRung::try_from(0).is_err());
         assert!(EscalationRung::try_from(-1).is_err());
-        assert!("FORCE".parse::<EscalationRung>().is_err());
-        assert!(serde_json::from_str::<EscalationRung>("\"RUNG_7\"").is_err());
+        assert!("FORCE".parse::<EscalationRung>().is_err()); // ARCHLINT-ALLOW
+        assert!(serde_json::from_str::<EscalationRung>("\"RUNG_7\"").is_err()); // ARCHLINT-ALLOW
         assert!(serde_yaml_rejects_seventh_rung());
     }
 
@@ -361,6 +361,9 @@ mod tests {
     #[test]
     fn there_are_exactly_six_rungs() {
         assert_eq!(EscalationRung::ALL.len(), 6);
-        assert_eq!(*EscalationRung::ALL.last().unwrap(), EscalationRung::Handoff);
+        assert_eq!(
+            *EscalationRung::ALL.last().unwrap(),
+            EscalationRung::Handoff
+        );
     }
 }
