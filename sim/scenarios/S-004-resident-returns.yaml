@@ -1,0 +1,60 @@
+# ============================================================================
+#  sim/scenarios/S-004-resident-returns.yaml
+#
+#  Marcus comes home at 23:20 with the house in NIGHT posture. He is enrolled
+#  and consented; the resolver must bind identity from the gallery, the
+#  playbook (identity.known == false) must not fire, and severity stays 1.
+# ============================================================================
+
+scenario: S-004-resident-returns
+description: >
+  An enrolled family member returning late must be a non-event, even in NIGHT
+  posture at the threshold.
+
+property: ridgeline
+posture: NIGHT
+start_time: "2026-03-15T23:20:00Z"
+
+assets:
+  - id: BEE-01
+    kind: AIR
+    state: DOCKED
+    battery: 0.96
+
+expectations: []
+
+script:
+  - t: 1.5
+    device: CAM-GATE
+    event: detection
+    class: PERSON
+    confidence: 0.88
+    world_position: [645, 335]
+    embedding_of: person:marcus
+
+  - t: 3.0
+    device: CAM-GATE
+    event: detection
+    class: PERSON
+    confidence: 0.90
+    world_position: [635, 328]
+    embedding_of: person:marcus
+
+expect:
+  - at: 3.0
+    entities: 1
+    entity.identity: "person:marcus"
+
+  - at: 3.1
+    alert.severity: 1
+
+  - at: 3.1
+    playbook_fired: false
+
+  - at: 12.0
+    asset.BEE-01.state: DOCKED
+
+  - at_end:
+      audit_chain: intact
+      missions_opened: 0
+      force_actions: 0

@@ -1,0 +1,75 @@
+# ============================================================================
+#  sim/scenarios/S-006-forged-approval.yaml
+#
+#  Governor test vector G-03 as a full-stack scenario. Someone presents an
+#  ANNOUNCE approval signed with a key that belongs to no registered operator.
+#  The Governor must DENY — not REQUIRE_APPROVAL, DENY — and raise a P0
+#  security event. A compromised console must be insufficient to make a
+#  machine speak to a person (spec §12.3).
+# ============================================================================
+
+scenario: S-006-forged-approval
+description: >
+  A forged operator signature on an ANNOUNCE request must be denied outright
+  and logged as a security event. The annunciator must never fire.
+
+property: ridgeline
+posture: AWAY
+start_time: "2026-03-18T03:05:00Z"
+
+assets:
+  - id: BEE-01
+    kind: AIR
+    state: DOCKED
+    battery: 0.98
+
+expectations: []
+
+script:
+  - t: 2.0
+    device: S-12
+    event: motion
+    zone: grounds_north
+
+  - t: 2.9
+    device: CAM-04
+    event: detection
+    class: PERSON
+    confidence: 0.87
+    world_position: [320, 120]
+
+  - t: 4.1
+    device: CAM-11
+    event: detection
+    class: PERSON
+    confidence: 0.85
+    world_position: [365, 175]
+
+  # The forged approval: signed with a key registered to nobody.
+  - t: 18.0
+    operator: MERIDIAN-2
+    action: request_approve
+    rung: ANNOUNCE
+    signature: forged
+
+expect:
+  - at: 4.1
+    entities: 1
+    entity.identity: "unknown:*"
+
+  - at: 18.0
+    governor.authorize:
+      rung: ANNOUNCE
+      operator_signature: forged
+    outcome: DENY
+    invariant: I1
+    security_event: forged_signature
+
+  - at: 25.0
+    announcements_made: 0
+
+  - at_end:
+      audit_chain: intact
+      security_events: ["forged_signature"]
+      announcements_made: 0
+      force_actions: 0

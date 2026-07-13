@@ -1,0 +1,41 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/aegis-common",
+    "crates/aegis-proto",
+    "crates/gateway",
+    "crates/resolver",
+    "crates/missions",
+    "crates/governor",
+    "crates/asset-adapter",
+    "sim/harness",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "UNLICENSED"
+
+[workspace.dependencies]
+aegis-common = { path = "crates/aegis-common" }
+aegis-proto = { path = "crates/aegis-proto" }
+gateway = { path = "crates/gateway" }
+resolver = { path = "crates/resolver" }
+missions = { path = "crates/missions" }
+governor = { path = "crates/governor" }
+asset-adapter = { path = "crates/asset-adapter" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+sha2 = "0.10"
+hex = "0.4"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+rand = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1"
+anyhow = "1"
+prost = "0.13"
+prost-types = "0.13"
+prost-build = "0.13"
+proptest = "1"

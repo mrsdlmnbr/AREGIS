@@ -1,0 +1,65 @@
+# ============================================================================
+#  sim/scenarios/S-003-raccoon.yaml
+#
+#  A raccoon crosses the north grounds at 02:40 with the family away. The most
+#  common false positive in consumer systems. Class != PERSON, so the playbook
+#  trigger must not fire; the benign term keeps severity at 1; nothing launches.
+# ============================================================================
+
+scenario: S-003-raccoon
+description: >
+  An animal on the grounds at night must not wake anyone and must not launch
+  anything.
+
+property: ridgeline
+posture: AWAY
+start_time: "2026-03-15T02:40:00Z"
+
+assets:
+  - id: BEE-01
+    kind: AIR
+    state: DOCKED
+    battery: 0.95
+
+expectations: []
+
+script:
+  - t: 1.0
+    device: S-12
+    event: motion
+    zone: grounds_north
+
+  - t: 2.2
+    device: CAM-04
+    event: detection
+    class: ANIMAL
+    confidence: 0.92
+    world_position: [310, 140]
+
+  - t: 3.8
+    device: CAM-04
+    event: detection
+    class: ANIMAL
+    confidence: 0.94
+    world_position: [335, 160]
+
+expect:
+  - at: 3.8
+    entities: 1
+    entity.expected: false
+
+  - at: 3.9
+    alert.severity: 1
+    alert.receipt.contains:
+      - known_benign
+
+  - at: 3.9
+    playbook_fired: false
+
+  - at: 15.0
+    asset.BEE-01.state: DOCKED
+
+  - at_end:
+      audit_chain: intact
+      missions_opened: 0
+      force_actions: 0

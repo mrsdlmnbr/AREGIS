@@ -1,0 +1,161 @@
+# ============================================================================
+#  sim/fixtures/ridgeline.yaml — the synthetic estate for the M0 scenario suite.
+#
+#  Coordinates are site metres (spec §2, Point). All key material below is
+#  SIM-ONLY: deterministic Ed25519 seeds so that replays are byte-identical.
+#  In production the Governor's key lives in the appliance HSM and never
+#  appears in any file (spec §19). A seed in a fixture outside sim/ is a
+#  build failure.
+# ============================================================================
+
+property:
+  id: ridgeline
+  name: "Ridgeline Estate"
+  timezone: UTC
+  jurisdiction: US-CO
+  # Legal property line.
+  boundary: [[0, 0], [800, 0], [800, 400], [0, 400]]
+  # Where assets may operate — inset from the boundary (spec proto §3).
+  geofence: [[15, 15], [785, 15], [785, 385], [15, 385]]
+
+# Zone lookup is first-match in this order (most specific first).
+zones:
+  - id: threshold_d03
+    name: "Rear door D-03"
+    class: THRESHOLD
+    area: [[436, 244], [452, 244], [452, 252], [436, 252]]
+  - id: rear_terrace
+    name: "Rear terrace"
+    class: GROUNDS
+    area: [[400, 230], [520, 230], [520, 280], [400, 280]]
+  - id: grounds_north
+    name: "North grounds / treeline"
+    class: GROUNDS
+    area: [[200, 80], [520, 80], [520, 230], [200, 230]]
+  - id: gate_drive
+    name: "Gate & driveway"
+    class: THRESHOLD
+    area: [[600, 300], [680, 380], [600, 380], [680, 300]]
+  - id: perimeter_east
+    name: "East perimeter"
+    class: PERIMETER
+    area: [[700, 15], [785, 15], [785, 385], [700, 385]]
+  - id: interior_main
+    name: "Main house interior"
+    class: INTERIOR
+    area: [[100, 250], [400, 250], [400, 380], [100, 380]]
+
+devices:
+  - id: S-12
+    kind: motion
+    capabilities: [MOTION_SENSOR]
+    zone: grounds_north
+    position: [300, 110]
+    attested: true
+  - id: CAM-04
+    kind: camera
+    capabilities: [VIDEO_SOURCE, AUDIO_SOURCE]
+    zone: grounds_north
+    position: [260, 60]
+    calibrated: true
+    attested: true
+  - id: CAM-11
+    kind: camera
+    capabilities: [VIDEO_SOURCE]
+    zone: rear_terrace
+    position: [470, 300]
+    calibrated: true
+    attested: true
+  - id: D-03
+    kind: contact
+    capabilities: [CONTACT_SENSOR]
+    zone: threshold_d03
+    position: [444, 248]
+    attested: true
+  - id: CAM-GATE
+    kind: camera
+    capabilities: [VIDEO_SOURCE]
+    zone: gate_drive
+    position: [640, 340]
+    calibrated: true
+    attested: true
+
+assets:
+  - id: BEE-01
+    kind: AIR
+    dock: [430, 120]
+    speed_mps: 40.0
+    launch_seconds: 0.5
+    permitted_rungs: [OBSERVE, ILLUMINATE, ANNOUNCE, SHADOW, HANDOFF]
+  - id: ARGUS-1
+    kind: GROUND
+    dock: [120, 100]
+    speed_mps: 8.0
+    launch_seconds: 2.0
+    permitted_rungs: [OBSERVE, ILLUMINATE, ANNOUNCE, SHADOW]
+
+# Opt-in neighbour mesh nodes (Authority: MESH_CONSENTED, consent refs on file).
+mesh_nodes:
+  - id: M-04
+    position: [820, 140]
+    authority_ref: mesh-consent-2025-114
+  - id: M-07
+    position: [830, 90]
+    authority_ref: mesh-consent-2025-117
+  - id: M-11
+    position: [-30, 200]
+    authority_ref: mesh-consent-2025-121
+# A holds-at-fence handoff goes to every mesh node within this range of the
+# point where the fleeing entity crossed the line.
+mesh_handoff_range_m: 150.0
+
+# Enrolled people (consented, enrolment-only biometrics — spec §3.5).
+people:
+  - id: person:ana
+    display_name: "Ana R."
+    role: STAFF
+    consent_biometric: true
+  - id: person:marcus
+    display_name: "Marcus"
+    role: FAMILY
+    consent_biometric: true
+
+vehicles:
+  - id: vehicle:8XJ-4410
+    plate: 8XJ-4410
+    owner: person:marcus
+
+# Pattern-of-life baseline the sim feeds to the threat scorer (spec §9.5 —
+# in M0 pol is a fixture input; the Python service learns this live from M3).
+pol_baseline:
+  available: true
+  last_unexpected_perimeter_days: 41
+  anomaly:
+    unknown_person_night: 0.8
+    unknown_person_day: 0.45
+    known_person: 0.1
+    animal: 0.1
+    vehicle_known: 0.1
+    vehicle_unknown: 0.5
+
+# Operator credentials. Seeds are SIM-ONLY (see header).
+operators:
+  - id: MERIDIAN-2
+    display_name: "Night watch, seat 2"
+    ed25519_seed_hex: "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+# A key that is NOT registered to any operator — S-006 signs with it to forge.
+forged_seed_hex: "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"
+
+# Appliance keys (SIM-ONLY seeds; production = HSM, spec §19).
+appliance:
+  governor_seed_hex: "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7"
+  evidence_seed_hex: "f5e5767cf153319517630f226876b86c8160cc583bc013744c6bf255f5cc0ee5"
+
+# Confidence thresholds per rung (τ_rung, invariant I5). Policy may only raise.
+tau_rung:
+  OBSERVE: 0.85
+  ILLUMINATE: 0.85
+  ANNOUNCE: 0.90
+  SHADOW: 0.90
+  DENY: 0.90
+  HANDOFF: 0.95

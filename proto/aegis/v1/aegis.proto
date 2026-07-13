@@ -1,0 +1,628 @@
+// ============================================================================
+//  AEGIS — canonical contracts.  THE SOURCE OF TRUTH.
+//
+//  Every data structure in the system is defined here. Hand-written DTOs are a
+//  build failure. Run `make gen` for Rust (prost/tonic), Go, Python, TypeScript.
+//
+//  Split this file into common/ontology/decision/api when it exceeds ~1200
+//  lines. Until then, one file is easier to hand over and harder to desync.
+// ============================================================================
+
+syntax = "proto3";
+package aegis.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/aegis/proto/aegis/v1;aegisv1";
+
+// ════════════════════════════════════════════════════════════════════════════
+//  1. PROVENANCE  —  no valid provenance, no ingestion.  (Spec §3.4, A5)
+// ════════════════════════════════════════════════════════════════════════════
+
+enum Authority {
+  AUTHORITY_UNSPECIFIED = 0;
+  OWNED          = 1;  // the owner's own device
+  MESH_CONSENTED = 2;  // a neighbour opted in, consent record on file
+  PUBLIC_OPEN    = 3;  // publicly published feed (weather, wildfire, ADS-B, AIS)
+  LICENSED       = 4;  // commercially licensed data
+  OWNER_DIRECTED = 5;  // owner explicitly authorised this connector
+}
+
+message Provenance {
+  string    source_id      = 1;  // device or feed URN
+  Authority authority      = 2;
+  string    authority_ref  = 3;  // consent record / contract / mesh agreement id.
+                                 // EMPTY => the gateway MUST reject the event.
+  google.protobuf.Timestamp captured_at = 4;  // device hardware clock (PTP preferred)
+  google.protobuf.Timestamp recorded_at = 5;  // appliance clock
+  int32   clock_offset_ms  = 6;
+  float   clock_confidence = 7;  // 0..1 — degrades the resolver's trust, never silently
+  bytes   device_signature = 8;  // secure-element signature over the payload
+  bool    attested         = 9;  // device identity cryptographically verified
+  string  schema_version   = 10;
+}
+
+// The unit of the event log. Hash-chained on decision.audit.
+message Envelope {
+  string     event_id    = 1;
+  string     property_id = 2;
+  string     topic       = 3;
+  Provenance prov        = 4;
+  bytes      payload     = 5;  // a serialised message from this file
+  string     payload_type = 6;
+  bytes      prev_hash   = 7;
+  bytes      hash        = 8;  // SHA-256 over canonical encoding
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  2. GEOMETRY & TIME
+// ════════════════════════════════════════════════════════════════════════════
+
+message Point   { double x = 1; double y = 2; double z = 3; }   // site coordinates, metres
+message Polygon { repeated Point points = 1; }
+message Pose    { Point position = 1; double heading_deg = 2; double pitch_deg = 3; double fov_deg = 4; }
+message BoundingBox { float x = 1; float y = 2; float w = 3; float h = 4; }
+message Covariance  { repeated double m = 1; }  // row-major
+
+message TimeWindow {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end   = 2;
+}
+
+message RecurrenceRule { string rrule = 1; string human = 2; }
+
+// ════════════════════════════════════════════════════════════════════════════
+//  3. PLACES, DEVICES, ASSETS
+// ════════════════════════════════════════════════════════════════════════════
+
+message Property {
+  string  id       = 1;
+  string  name     = 2;
+  Polygon boundary = 3;   // the legal property line
+  Polygon geofence = 4;   // where assets may operate — inset from the boundary
+  repeated string zone_ids = 5;
+  string  timezone = 6;
+  string  jurisdiction = 7;  // drives the regulatory policy file. Never hard-code rules.
+}
+
+enum ZoneClass {
+  ZONE_UNSPECIFIED = 0;
+  PERIMETER = 1;
+  GROUNDS   = 2;
+  THRESHOLD = 3;
+  INTERIOR  = 4;
+  PRIVATE   = 5;  // bedrooms, bathrooms — NO CAMERAS. Sensors only. Enforced at install.
+  SAFE_ROOM = 6;
+}
+
+message Zone {
+  string    id          = 1;
+  string    property_id = 2;
+  string    name        = 3;
+  Polygon   area        = 4;
+  ZoneClass class       = 5;
+  int32     retention_days = 6;
+}
+
+enum Capability {
+  CAP_UNSPECIFIED = 0;
+  VIDEO_SOURCE    = 1;
+  AUDIO_SOURCE    = 2;
+  MOTION_SENSOR   = 3;
+  CONTACT_SENSOR  = 4;
+  GLASSBREAK      = 5;
+  ACCESS_POINT    = 6;
+  ILLUMINATOR     = 7;
+  ANNUNCIATOR     = 8;
+  MOBILE_ASSET    = 9;
+  NETWORK_SENSOR  = 10;
+  EXTERNAL_FEED   = 11;
+  // ── the four our own hardware will implement and third-party gear will not (§10.3)
+  EDGE_EMBEDDER   = 12;  // ships vectors, not just pixels
+  SIGNED_CAPTURE  = 13;  // secure element signs frames AT CAPTURE
+  PTP_CLOCK       = 14;  // hard time sync — the silent killer of fusion quality
+  LOCAL_BUFFER    = 15;  // keeps recording and reconciles when the wire is cut
+}
+
+enum DeviceState { DEV_UNSPECIFIED = 0; READY = 1; DEGRADED = 2; FAULT = 3; OFFLINE = 4; }
+
+message Device {
+  string  id          = 1;
+  string  property_id = 2;
+  string  zone_id     = 3;
+  string  vendor      = 4;
+  string  model       = 5;
+  repeated Capability capabilities = 6;
+  Pose    pose        = 7;
+  bool    calibrated  = 8;    // homography captured? Without it, no cross-sensor fusion.
+  bytes   homography  = 9;    // 3x3, row-major float64
+  DeviceState state   = 10;
+  bool    attested    = 11;
+  float   battery     = 12;
+}
+
+enum AssetKind  { ASSET_UNSPECIFIED = 0; AIR = 1; GROUND = 2; FIXED_RESPONDER = 3; }
+enum AssetState { AS_UNSPECIFIED = 0; DOCKED = 1; LAUNCHING = 2; ENROUTE = 3;
+                  ON_STATION = 4; RETURNING = 5; ASSET_FAULT = 6; }
+
+message Asset {
+  string     id       = 1;
+  AssetKind  kind     = 2;
+  string     dock_id  = 3;
+  AssetState state    = 4;
+  float      battery  = 5;
+  Pose       pose     = 6;
+  // Enforced ONBOARD as well as here. The asset must be INCAPABLE of the rest. (§13)
+  repeated EscalationRung permitted_rungs = 7;
+  Polygon    onboard_geofence = 8;
+  bytes      geofence_hash    = 9;   // asset refuses a grant whose hash does not match
+  bytes      governor_pubkey  = 10;  // the asset holds this. No valid grant → no motion.
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  4. PEOPLE, EXPECTATIONS, POSTURE
+// ════════════════════════════════════════════════════════════════════════════
+
+enum PersonRole {
+  ROLE_UNSPECIFIED = 0;
+  PRINCIPAL = 1; FAMILY = 2; STAFF = 3; DETAIL = 4; VENDOR = 5; GUEST = 6;
+}
+
+message Person {
+  string     id           = 1;
+  string     display_name = 2;
+  PersonRole role         = 3;
+  // Consented, enrolment-only, local-only. Revocable — and the revocation is
+  // itself an AuditRecord. (§3.5) Never matched against external databases.
+  repeated string embedding_ids = 4;
+  repeated AccessGrant grants   = 5;
+  bool   flagged      = 6;
+  string flag_reason  = 7;
+  bool   consent_biometric = 8;
+}
+
+message Vehicle {
+  string id = 1; string plate = 2; string make = 3; string model = 4; string color = 5;
+  string owner_person_id = 6;
+  repeated string embedding_ids = 7;
+}
+
+message AccessGrant {
+  string id = 1;
+  string person_id = 2;
+  repeated string zone_ids = 3;
+  TimeWindow window = 4;
+  bool   expires    = 5;
+  string granted_by = 6;
+}
+
+// The single largest false-alarm reduction in the system. Build it in M3,
+// before any model work. It costs almost nothing. (Spec §6.2)
+message Expectation {
+  string id = 1;
+  string person_id  = 2;   // or…
+  string vehicle_id = 3;   // …or a one-time gate code:
+  string onetime_code = 4;
+  repeated string zone_ids = 5;
+  TimeWindow      window   = 6;
+  RecurrenceRule  recurrence = 7;
+  string registered_by = 8;   // usually the estate manager, from the staff app
+  string note = 9;
+}
+
+enum Posture {
+  POSTURE_UNSPECIFIED = 0;
+  NOMINAL = 1; AWAY = 2; NIGHT = 3; ELEVATED = 4; LOCKDOWN = 5;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  5. OBSERVATION → IDENTITY   (Spec §6.1)
+// ════════════════════════════════════════════════════════════════════════════
+
+enum ObjectClass {
+  OBJ_UNSPECIFIED = 0;
+  PERSON = 1; VEHICLE = 2; ANIMAL = 3; PACKAGE = 4; DRONE = 5; UNKNOWN_OBJ = 6;
+}
+
+message Sighting {
+  string      id          = 1;
+  string      device_id   = 2;
+  Provenance  prov        = 3;
+  BoundingBox bbox        = 4;
+  ObjectClass class       = 5;
+  float       confidence  = 6;
+  bytes       embedding   = 7;   // computed at the edge where the device supports it
+  Point       world_position = 8; // ground-plane projection via the device homography
+  Covariance  position_cov   = 9;
+  bytes       frame_hash     = 10; // content address; chain of custody starts HERE
+}
+
+message Track {
+  string id = 1;
+  string device_id = 2;
+  repeated string sighting_ids = 3;
+  TimeWindow span = 4;
+}
+
+message Entity {
+  string id = 1;
+  repeated string track_ids = 2;      // fused across sensors
+  ObjectClass class = 3;
+  string identity_id = 4;             // may be "unknown:7F3A"
+  repeated Point trajectory = 5;
+  Point  position = 6;
+  Point  velocity = 7;
+  string current_zone_id = 8;
+  float  dwell_seconds = 9;
+  float  confidence = 10;
+  bool   expected = 11;               // matched an active Expectation
+  string expectation_id = 12;
+  // Never guess silently: if association is ambiguous, carry BOTH hypotheses.
+  repeated string alternate_identity_ids = 13;
+}
+
+// A durable handle for a stranger. THIS IS THE PRODUCT. (Spec §6.1)
+// The unknown at the gate on Tuesday and the unknown at the Aspen property on
+// Friday resolve to the same handle, across sensors, properties and weeks,
+// without ever knowing who they are.
+message Identity {
+  string id = 1;                      // "person:ana" | "vehicle:8XJ-4410" | "unknown:7F3A"
+  bool   known = 2;
+  string person_id  = 3;
+  string vehicle_id = 4;
+  repeated string prior_encounters = 5;   // event ids, cross-property, cross-time
+  int32  encounter_count = 6;
+  google.protobuf.Timestamp first_seen = 7;
+  google.protobuf.Timestamp last_seen  = 8;
+  repeated string seen_at_property_ids = 9;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  6. ASSESSMENT  —  the number must be explainable, term by term.  (Spec §9.6)
+// ════════════════════════════════════════════════════════════════════════════
+
+// One line of the fusion receipt. The console renders these. An operator who
+// cannot see WHY will not trust the system, and an insurer will not accept it.
+message ReceiptTerm {
+  string name         = 1;   // "posture_amplifier", "expectation_discount", "pol_anomaly"
+  string input        = 2;   // "AWAY @ 03:11"
+  double weight       = 3;
+  double contribution = 4;
+  string note         = 5;
+}
+
+enum AlertState { ALERT_UNSPECIFIED = 0; OPEN = 1; ACKED = 2; ACTIONED = 3; DISMISSED = 4; }
+
+enum DismissReason {
+  DISMISS_UNSPECIFIED = 0;
+  // DISMISS_ANIMAL, not ANIMAL: proto3 enum values share the package scope
+  // (C++ scoping rules) and ANIMAL is taken by ObjectClass. Wire-compatible
+  // rename — the number is unchanged. See ADR-0004.
+  KNOWN_PERSON = 1; EXPECTED_VISITOR = 2; DISMISS_ANIMAL = 3; WEATHER = 4;
+  SENSOR_FAULT = 5; RESIDENT = 6; DELIVERY = 7; OTHER = 8;
+}
+
+message Alert {
+  string id = 1;
+  int32  severity = 2;                 // 1..5
+  double threat_score = 3;
+  string entity_id = 4;
+  string zone_id   = 5;
+  string property_id = 6;
+  repeated string contributing_event_ids = 7;   // the fusion receipt's evidence
+  repeated ReceiptTerm receipt = 8;             // …and its arithmetic
+  string pol_note = 9;                          // "last unexpected perimeter entity: 41 days ago"
+  repeated string mesh_corroborations = 10;
+  string playbook_id = 11;
+  string mission_id  = 12;
+  AlertState state = 13;
+  DismissReason dismiss_reason = 14;            // feeds the learning loop — OFFLINE, in shadow
+  string dismiss_note = 15;
+  string evidence_package_id = 16;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  7. RESPONSE  —  ordered by irreversibility.  (Spec §3.1)
+// ════════════════════════════════════════════════════════════════════════════
+
+enum EscalationRung {
+  RUNG_UNSPECIFIED = 0;
+  OBSERVE    = 1;  // launch, look, stream. No interaction with any person.
+  ILLUMINATE = 2;  // lighting, spotlight.
+  ANNOUNCE   = 3;  // ── HUMAN SIGNATURE REQUIRED FROM HERE UP ──
+  SHADOW     = 4;  // follow and record. Stops at the geofence.
+  DENY       = 5;  // lock zones, close gate, secure safe room. Passive.
+  HANDOFF    = 6;  // sealed evidence + live feed to detail and law enforcement.
+  // THERE IS NO RUNG 7.
+  // No force. Not a setting, not a licence tier, not a customer request.
+  // The Governor has no branch for one. Do not add one. Escalate to a human
+  // if asked. (Spec §3.1, CLAUDE.md rule 3)
+}
+
+enum AutonomyLevel {
+  AUTONOMY_UNSPECIFIED = 0;
+  HUMAN_DIRECTED   = 1;  // the operator initiates
+  HUMAN_SUPERVISED = 2;  // system initiates; operator may abort within the window (8 s)
+  HUMAN_ON_LOOP    = 3;  // system acts, human notified — CAPPED AT ILLUMINATE (invariant I2)
+}
+
+message RulesOfEngagement {
+  EscalationRung max_rung     = 1;
+  AutonomyLevel  max_autonomy = 2;
+  Polygon        geofence     = 3;
+  bytes          geofence_hash = 4;
+  TimeWindow     valid        = 5;
+  bool           masks_offsite_optics = 6;  // always true. Masked in the ENCODER, not the UI.
+}
+
+enum MissionState {
+  MISSION_UNSPECIFIED = 0;
+  OPENED = 1; OBSERVING = 2; ENGAGED = 3; HANDED_OFF = 4; CLOSED = 5; ABORTED = 6;
+}
+
+message Mission {
+  string id = 1;
+  string alert_id = 2;
+  string playbook_id = 3;
+  string objective = 4;
+  RulesOfEngagement roe = 5;
+  repeated string asset_ids = 6;
+  repeated Action actions = 7;
+  MissionState state = 8;
+  string debrief = 9;
+}
+
+enum ActionState {
+  ACTION_UNSPECIFIED = 0;
+  PROPOSED = 1; AWAITING_APPROVAL = 2; COUNTING_DOWN = 3;  // the 8-second abort window
+  EXECUTING = 4; COMPLETE = 5; ABORTED_BY_OPERATOR = 6; DENIED = 7;
+}
+
+message Action {
+  string id = 1;
+  string mission_id = 2;
+  EscalationRung rung = 3;
+  AutonomyLevel  autonomy = 4;
+  string asset_id = 5;
+  string authorized_by = 6;      // operator id, or rule id. NEVER an LLM. (A2)
+  google.protobuf.Timestamp authorized_at = 7;
+  string governor_decision_id = 8;
+  string grant_id = 9;
+  ActionState state = 10;
+  string abort_reason = 11;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  8. ★ THE GOVERNOR  —  the only path by which anything physical moves.
+//     (Spec §12. Read it before touching this section.)
+// ════════════════════════════════════════════════════════════════════════════
+
+enum DecisionOutcome {
+  DECISION_UNSPECIFIED = 0;
+  ALLOW            = 1;
+  REQUIRE_APPROVAL = 2;
+  DECISION_DENY    = 3;
+}
+
+message AuthorizeRequest {
+  string mission_id = 1;
+  EscalationRung rung = 2;
+  AutonomyLevel  autonomy_requested = 3;
+  string  asset_id = 4;
+  AssetState asset_state = 5;
+  string  zone_id = 6;
+  Polygon trajectory_envelope = 7;   // the full swept volume, not a waypoint
+  Polygon geofence = 8;
+  float   entity_confidence = 9;
+  Posture posture = 10;
+  google.protobuf.Timestamp at = 11; // time is an INPUT, never an ambient. (A7)
+  string  operator_credential_id = 12;
+  bytes   operator_signature = 13;   // REQUIRED for rung >= ANNOUNCE (invariant I1)
+  string  policy_version = 14;
+}
+
+// A short-lived signed capability. NOTHING MOVES WITHOUT ONE.
+//
+// The asset firmware holds the Governor's public key. No valid grant → no
+// motion. Not "refuses politely" — *cannot*. For rung >= ANNOUNCE the grant
+// carries TWO signatures: even a fully compromised Governor cannot make a
+// drone speak to a person without an operator's key.
+//
+// A compromised console, a compromised missions service, and a compromised
+// network are each independently insufficient to move an asset. (Spec §12.3)
+message ActionGrant {
+  string grant_id   = 1;
+  string mission_id = 2;
+  string asset_id   = 3;
+  EscalationRung rung = 4;
+  AutonomyLevel  autonomy = 5;
+  bytes  geofence_hash = 6;   // asset checks this against its LOADED fence; mismatch → refuse
+  google.protobuf.Timestamp not_before = 7;
+  google.protobuf.Timestamp not_after  = 8;   // ≤ 30 s TTL
+  string authorized_by  = 9;
+  string rule_version   = 10;
+  string policy_version = 11;
+  bytes  governor_signature = 12;   // Ed25519, key never leaves the appliance HSM
+  bytes  operator_signature = 13;   // REQUIRED for rung >= ANNOUNCE
+}
+
+message AuthorizeDecision {
+  string decision_id = 1;
+  DecisionOutcome outcome = 2;
+  string reason = 3;              // human-readable, always populated, even on ALLOW
+  string invariant_violated = 4;  // "I3: trajectory leaves geofence"
+  ActionGrant grant = 5;          // present only on ALLOW
+  string audit_record_id = 6;     // an AuditRecord is written on EVERY path, incl. DENY
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  9. ACCOUNTABILITY  —  nothing this system does may be invisible.
+// ════════════════════════════════════════════════════════════════════════════
+
+message AuditRecord {
+  string id = 1;
+  string subject_id = 2;    // action, mission, query, data access, key rotation, un-enrolment
+  string actor_id   = 3;    // a human or a service. Never an LLM in an authorization path.
+  string action     = 4;
+  string rule_version = 5;
+  float  confidence_at_decision = 6;
+  repeated string evidence_event_ids = 7;
+  google.protobuf.Timestamp at = 8;
+  bytes  prev_hash = 9;     // hash-chained. A break is a P0 and locks out physical actions.
+  bytes  hash = 10;
+}
+
+message EvidencePackage {
+  string id = 1;
+  string incident_id = 2;
+  repeated bytes media_hashes = 3;      // content-addressed: the hash IS the key
+  repeated string event_ids = 4;
+  repeated string audit_record_ids = 5;
+  bytes  merkle_root = 6;
+  bytes  signature = 7;                  // appliance HSM
+  google.protobuf.Timestamp sealed_at = 8;
+  string sealed_by = 9;
+  // Verifiable by `tools/evidence-verify`, a standalone binary a third party
+  // can run — police, insurer, opposing counsel — with no trust in us.
+  // Ship it, document it, and make it the thing you demo.
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  10. THE AGENT  —  read-only. No credentials. No write path. (Spec §9.11)
+// ════════════════════════════════════════════════════════════════════════════
+
+message AskRequest  { string property_id = 1; string question = 2; }
+message AskResponse {
+  string answer = 1;
+  repeated string cited_event_ids = 2;   // every claim traceable to the log
+  bool   uncertain = 3;
+}
+
+// The agent may PROPOSE. It may never EXECUTE. A human acts on this object,
+// or it does nothing. A successful prompt injection therefore yields a wrong
+// sentence, not a launched drone — a design property, not a filter. (A2)
+message CourseOfActionProposal {
+  string id = 1;
+  string alert_id = 2;
+  EscalationRung suggested_rung = 3;
+  string rationale = 4;
+  repeated string cited_event_ids = 5;
+  bool   requires_human = 6;   // always true. There is no other value.
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  11. SERVICES
+// ════════════════════════════════════════════════════════════════════════════
+
+service GatewayService {
+  rpc StreamEvents (StreamEventsRequest) returns (stream Envelope);
+  rpc ListDevices  (ListDevicesRequest)  returns (ListDevicesResponse);
+  // NOT for assets. Asset motion goes through the Governor. A lint enforces
+  // that no driver imports the asset command types. (Spec §10.2)
+  rpc CommandDevice(DeviceCommand)       returns (CommandAck);
+}
+
+service OntologyService {
+  rpc GetTwin          (GetTwinRequest)     returns (Twin);
+  rpc StreamTwin       (StreamTwinRequest)  returns (stream TwinDelta);
+  rpc Query            (QueryRequest)       returns (QueryResponse);   // read-only, structured
+  rpc UpsertPerson     (Person)             returns (Ack);
+  rpc UpsertExpectation(Expectation)        returns (Ack);
+  rpc SetPosture       (SetPostureRequest)  returns (Ack);
+  rpc GrantAccess      (AccessGrant)        returns (Ack);
+  rpc RevokeAccess     (RevokeRequest)      returns (Ack);
+}
+
+service ThreatService {
+  rpc StreamAlerts(StreamAlertsRequest) returns (stream Alert);
+  rpc Dismiss     (DismissRequest)      returns (Ack);   // retrains OFFLINE, in shadow. Never live.
+}
+
+service MissionService {
+  rpc StreamMissions(StreamMissionsRequest) returns (stream Mission);
+  rpc RequestAction (RequestActionRequest)  returns (Action);  // → Governor
+  rpc AbortAction   (AbortActionRequest)    returns (Ack);     // needs no grant. Stopping is always allowed.
+  rpc ApproveAction (ApproveActionRequest)  returns (Action);  // carries the operator signature
+}
+
+// The ONLY client of this service is `missions`. Enforced by mTLS identity
+// and by an architecture lint.
+service GovernorService {
+  rpc Authorize(AuthorizeRequest) returns (AuthorizeDecision);
+  rpc GetPolicy(GetPolicyRequest) returns (Policy);
+}
+
+service AssetService {
+  // Every call carries an ActionGrant. The asset verifies it AGAIN, onboard,
+  // against the Governor's public key it holds. Mission-level verbs only —
+  // never a joystick stream. (Spec §13)
+  rpc Task  (TaskRequest)   returns (stream AssetTelemetry);
+  rpc Recall(RecallRequest) returns (Ack);   // requires NO grant. The safe verb needs no key.
+}
+
+service EvidenceService {
+  rpc Seal  (SealRequest)   returns (EvidencePackage);
+  rpc Export(ExportRequest) returns (stream Chunk);
+  rpc Verify(VerifyRequest) returns (VerifyResult);
+}
+
+service AgentService {
+  rpc Ask       (AskRequest)     returns (AskResponse);              // read-only
+  rpc ProposeCOA(ProposeRequest) returns (CourseOfActionProposal);   // non-authoritative
+}
+
+// ── request/response scaffolding ────────────────────────────────────────────
+message StreamEventsRequest   { string property_id = 1; repeated string topics = 2; }
+message ListDevicesRequest    { string property_id = 1; }
+message ListDevicesResponse   { repeated Device devices = 1; }
+message DeviceCommand         { string device_id = 1; string verb = 2; string args_json = 3; }
+message CommandAck            { bool ok = 1; string error = 2; }
+
+message GetTwinRequest        { string property_id = 1; }
+message StreamTwinRequest     { string property_id = 1; }
+message Twin {
+  Property property = 1;
+  Posture  posture  = 2;
+  repeated Zone   zones   = 3;
+  repeated Device devices = 4;
+  repeated Asset  assets  = 5;
+  repeated Entity entities = 6;
+  repeated Alert  open_alerts = 7;
+  repeated Expectation active_expectations = 8;
+}
+message TwinDelta            { string property_id = 1; bytes patch = 2; }
+message QueryRequest         { string property_id = 1; string query = 2; }  // structured, not SQL
+message QueryResponse        { bytes result_json = 1; repeated string cited_event_ids = 2; }
+message SetPostureRequest    { string property_id = 1; Posture posture = 2; string actor_id = 3; }
+message RevokeRequest        { string grant_id = 1; string actor_id = 2; }
+message Ack                  { bool ok = 1; string error = 2; }
+
+message StreamAlertsRequest  { string property_id = 1; int32 min_severity = 2; }
+message DismissRequest       { string alert_id = 1; DismissReason reason = 2; string note = 3; string actor_id = 4; }
+
+message StreamMissionsRequest { string property_id = 1; }
+message RequestActionRequest  { string mission_id = 1; EscalationRung rung = 2; string asset_id = 3; }
+message AbortActionRequest    { string action_id = 1; string actor_id = 2; string reason = 3; }
+message ApproveActionRequest  { string action_id = 1; string operator_credential_id = 2; bytes operator_signature = 3; }
+
+message GetPolicyRequest { string property_id = 1; }
+message Policy {
+  string version = 1;
+  string jurisdiction = 2;
+  // A policy may only TIGHTEN the compiled-in caps. A policy that attempts to
+  // loosen one is REJECTED AT LOAD and the Governor keeps its last-good policy.
+  // (Invariant I4, Spec §12.2)
+  map<string, int32> max_autonomy_by_rung = 3;
+  map<string, float> min_confidence_by_rung = 4;
+}
+
+message TaskRequest     { ActionGrant grant = 1; string verb = 2; repeated Point waypoints = 3; string target_entity_id = 4; }
+message RecallRequest    { string asset_id = 1; string actor_id = 2; }
+message AssetTelemetry   { string asset_id = 1; AssetState state = 2; Pose pose = 3; float battery = 4; bool geofence_hold = 5; bool optics_masked = 6; }
+
+message SealRequest      { string incident_id = 1; string actor_id = 2; }
+message ExportRequest    { string package_id = 1; }
+message Chunk            { bytes data = 1; }
+message VerifyRequest    { string package_id = 1; }
+message VerifyResult     { bool valid = 1; repeated string failed_artifacts = 2; }
+message ProposeRequest   { string alert_id = 1; }

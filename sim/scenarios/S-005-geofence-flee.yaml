@@ -1,0 +1,87 @@
+# ============================================================================
+#  sim/scenarios/S-005-geofence-flee.yaml
+#
+#  The invariant that keeps us out of court. An intruder flees off the
+#  property while an asset is on station and the operator — properly signed —
+#  requests SHADOW along the flee path. The Governor must DENY (I3: the
+#  trajectory leaves the geofence), the asset must hold at the line with
+#  optics masked, and the handoff goes to the mesh. Zero breaches, forever.
+# ============================================================================
+
+scenario: S-005-geofence-flee
+description: >
+  A validly-signed pursuit request whose trajectory exits the geofence must be
+  denied by the Governor, and the asset must hold at the line regardless.
+
+property: ridgeline
+posture: AWAY
+start_time: "2026-03-16T03:40:00Z"
+
+assets:
+  - id: BEE-01
+    kind: AIR
+    state: DOCKED
+    battery: 0.93
+
+expectations: []
+
+script:
+  - t: 2.0
+    device: S-12
+    event: motion
+    zone: grounds_north
+
+  - t: 2.8
+    device: CAM-04
+    event: detection
+    class: PERSON
+    confidence: 0.88
+    world_position: [340, 130]
+
+  - t: 3.9
+    device: CAM-11
+    event: detection
+    class: PERSON
+    confidence: 0.86
+    world_position: [380, 190]
+
+  - t: 20.0
+    entity_mode: FLEE
+    path: [[520, 200], [640, 150], [730, 120], [860, 95]]   # exits the geofence
+
+  # Operator, correctly credentialed, asks the asset to follow the flee path.
+  # The trajectory envelope leaves the fence: the Governor must refuse even a
+  # valid human. Doctrine outranks the operator (spec §3.2).
+  - t: 24.0
+    operator: MERIDIAN-2
+    action: request_approve
+    rung: SHADOW
+    signature: valid
+
+expect:
+  - at: 3.9
+    entities: 1
+    entity.identity: "unknown:*"
+
+  - at: 4.0
+    governor.decision: ALLOW
+    governor.rung: OBSERVE
+    governor.autonomy: HUMAN_SUPERVISED
+
+  - at: 24.0
+    governor.authorize:
+      rung: SHADOW
+      operator_signature: valid
+    outcome: DENY
+    invariant: I3
+
+  - at: 30.0
+    asset.BEE-01.geofence_hold: true
+    asset.BEE-01.optics_masked: true
+    asset.BEE-01.position: inside(geofence)
+    feeds.mesh.handoff: ["M-04", "M-07"]
+
+  - at_end:
+      audit_chain: intact
+      geofence_breaches: 0
+      force_actions: 0

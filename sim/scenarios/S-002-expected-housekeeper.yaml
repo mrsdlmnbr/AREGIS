@@ -1,0 +1,69 @@
+# ============================================================================
+#  sim/scenarios/S-002-expected-housekeeper.yaml
+#
+#  The estate manager pre-registered Ana for Tuesday morning. She arrives at
+#  09:05. The playbook must NOT fire, nothing must launch, and the receipt
+#  must show the expectation discount doing its work. Expectations are the
+#  single largest false-alarm reduction in the system (spec §6.2).
+# ============================================================================
+
+scenario: S-002-expected-housekeeper
+description: >
+  Enrolled staff member arrives inside her pre-registered window. The system
+  must resolve her as known + expected, score severity 1, and fire no playbook.
+
+property: ridgeline
+posture: NOMINAL
+start_time: "2026-03-17T09:05:00Z"
+
+assets:
+  - id: BEE-01
+    kind: AIR
+    state: DOCKED
+    battery: 0.97
+
+expectations:
+  - id: exp-ana-tue
+    person_id: person:ana
+    zones: [gate_drive, grounds_north, interior_main]
+    window: ["2026-03-17T09:00:00Z", "2026-03-17T13:00:00Z"]
+    registered_by: staff:estate-manager
+
+script:
+  - t: 2.0
+    device: CAM-GATE
+    event: detection
+    class: PERSON
+    confidence: 0.91
+    world_position: [640, 330]
+    embedding_of: person:ana
+
+  - t: 4.0
+    device: CAM-GATE
+    event: detection
+    class: PERSON
+    confidence: 0.93
+    world_position: [630, 322]
+    embedding_of: person:ana
+
+expect:
+  - at: 4.0
+    entities: 1
+    entity.identity: "person:ana"
+    entity.expected: true
+
+  - at: 4.1
+    alert.severity: 1
+    alert.receipt.contains:
+      - expectation_discount
+
+  - at: 4.1
+    playbook_fired: false
+
+  - at: 10.0
+    asset.BEE-01.state: DOCKED
+
+  - at_end:
+      audit_chain: intact
+      missions_opened: 0
+      force_actions: 0

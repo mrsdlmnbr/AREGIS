@@ -1,0 +1,147 @@
+# ============================================================================
+#  sim/scenarios/S-001-night-perimeter.yaml
+#
+#  A scenario is a deterministic script. Because domain logic never calls
+#  now() (axiom A7), this replays byte-identically, every time, forever.
+#
+#  The Governor does not know this is a simulation. It runs the real policy,
+#  issues real grants, and its decisions are asserted below. That is the point:
+#  we are not testing a mock, we are testing the thing that will fly the drone.
+#
+#  Run:  make replay SCENARIO=S-001-night-perimeter
+# ============================================================================
+
+scenario: S-001-night-perimeter
+description: >
+  An unknown person crosses the north treeline at 03:11 with the family away.
+  The system must fuse three sensors into one entity, find no expectation,
+  raise severity 4, launch OBSERVE under supervised autonomy with an abort
+  window, and REFUSE to announce without a human signature.
+
+property: ridgeline
+posture: AWAY
+start_time: "2026-03-14T03:11:40Z"     # time is an input. Never an ambient.
+
+assets:
+  - id: BEE-01
+    kind: AIR
+    state: DOCKED
+    battery: 0.94
+  - id: ARGUS-1
+    kind: GROUND
+    state: DOCKED
+    battery: 1.00
+
+expectations: []                        # ← the whole point of the scenario
+
+script:
+  - t: 3.0
+    device: S-12
+    event: motion
+    zone: grounds_north
+    note: "north treeline"
+
+  - t: 3.6
+    device: CAM-04
+    event: detection
+    class: PERSON
+    confidence: 0.79
+    world_position: [330, 125]
+
+  - t: 4.4
+    device: CAM-04
+    event: detection
+    class: PERSON
+    confidence: 0.84
+    world_position: [352, 152]
+
+  - t: 5.4
+    device: CAM-11
+    event: detection
+    class: PERSON
+    confidence: 0.81
+    world_position: [398, 205]
+
+  - t: 12.0
+    entity_reaches: [440, 240]          # rear terrace, 4 m from threshold D-03
+    then: dwell
+
+  # The operator's hold-to-authorize produces a real Ed25519 signature over the
+  # action. Without it, ANNOUNCE must fail. With it, ANNOUNCE must succeed and
+  # the audit record must name the operator.
+  - t: 26.0
+    operator: MERIDIAN-2
+    action: request_approve
+    rung: ANNOUNCE
+    signature: valid
+
+  - t: 26.5
+    entity_mode: FLEE
+    path: [[520,200],[620,160],[730,130],[845,102]]   # exits the geofence
+
+# ── assertions: the contract this scenario enforces ─────────────────────────
+expect:
+
+  # fusion
+  - at: 5.4
+    entities: 1
+    entity.identity: "unknown:*"        # a durable handle, not a nameless blob
+    entity.confidence: ">= 0.90"        # three sensors fused beat any one of them
+    entity.expected: false
+
+  # assessment — and it must be explainable, term by term
+  - at: 5.5
+    alert.severity: 4
+    alert.receipt.contains:
+      - posture_amplifier
+      - expectation_discount
+      - pol_anomaly
+    alert.pol_note: "*41 days*"
+
+  # response: supervised, abortable, and it happened in under ten seconds
+  - at: 5.5
+    governor.decision: ALLOW
+    governor.rung: OBSERVE
+    governor.autonomy: HUMAN_SUPERVISED
+    action.state: COUNTING_DOWN
+    action.abort_window_seconds: 8
+
+  - at: 20.0
+    asset.BEE-01.state: ON_STATION
+    metric.signal_to_visual_seconds: "< 15"   # the north star, in miniature
+
+  # ★ the invariant that matters most ★
+  # Before the operator signs, ANNOUNCE must be refused. Not discouraged.
+  # Not warned about. Refused.
+  - at: 25.9
+    governor.authorize:
+      rung: ANNOUNCE
+      operator_signature: absent
+    outcome: REQUIRE_APPROVAL
+    invariant: I1
+
+  - at: 26.0
+    governor.authorize:
+      rung: ANNOUNCE
+      operator_signature: valid
+    outcome: ALLOW
+    grant.signatures: 2                 # governor + operator. The two-key model.
+    audit.authorized_by: MERIDIAN-2
+
+  # ★ and the one that keeps us out of court ★
+  # The subject flees off the property. The asset holds at the line. It does not
+  # follow. It masks its optics. It hands off. Zero geofence breaches, forever.
+  - at: 32.0
+    asset.BEE-01.geofence_hold: true
+    asset.BEE-01.optics_masked: true
+    asset.BEE-01.position: inside(geofence)
+    governor.last_decision: DENY
+    governor.invariant_violated: I3
+    feeds.mesh.handoff: ["M-04", "M-07"]
+
+  # accountability
+  - at_end:
+      audit_chain: intact
+      evidence_package: sealed
+      evidence_verify: passes            # a third party can verify it without trusting us
+      force_actions: 0                   # there is no rung above HANDOFF, and there never will be
