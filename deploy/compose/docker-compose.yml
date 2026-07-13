@@ -66,6 +66,30 @@ services:
       minio: { condition: service_healthy }
     command: ["sleep", "infinity"] # M0: tools image; sim execs into it
 
+  ontologyd:
+    # The digital twin over gRPC, folding the file-backed event log
+    # (ADR-0005). The Redpanda backend replaces the file behind the same
+    # eventlog seam.
+    build:
+      context: ../..
+      dockerfile: deploy/compose/go.Dockerfile
+    command:
+      ["/usr/local/bin/ontologyd", "--property", "ridgeline", "--log", "/data/world.log", "--listen", ":7200"]
+    volumes:
+      - ontology-data:/data
+    ports: ["7200:7200"]
+
+  bffd:
+    # The read edge: HTTP + SSE, persona-gated, no authority of its own.
+    build:
+      context: ../..
+      dockerfile: deploy/compose/go.Dockerfile
+    command:
+      ["/usr/local/bin/bffd", "--property", "ridgeline", "--ontology", "ontologyd:7200", "--listen", ":7400"]
+    depends_on:
+      ontologyd: { condition: service_started }
+    ports: ["7400:7400"]
+
   sim:
     # The M0 acceptance gate: the synthetic estate end to end, zero hardware.
     build:
@@ -80,3 +104,6 @@ services:
       - --fixtures=/aegis/sim/fixtures
       - --playbooks=/aegis/playbooks
       - --bin=/usr/local/bin
+
+volumes:
+  ontology-data:

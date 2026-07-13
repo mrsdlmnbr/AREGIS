@@ -5,11 +5,17 @@
 
 import type { TwinView } from "../types";
 
-export function Header({ twin }: { twin: TwinView }) {
+export function Header({ twin, live }: { twin: TwinView; live: boolean }) {
   return (
     <header className="header">
       <span className="brand">AEGIS</span>
       <span className="property">{twin.propertyName}</span>
+      <span
+        className={`source-pill ${live ? "live" : "sample"}`}
+        title={live ? "connected to bffd" : "no bff reachable — committed sample data"}
+      >
+        {live ? "LIVE" : "SAMPLE"}
+      </span>
       <span className={`posture-pill ${twin.posture.toLowerCase()}`}>{twin.posture}</span>
       <span className={`governor-pill ${twin.governorState === "NOMINAL" ? "ok" : "bad"}`}>
         GOVERNOR · {twin.governorState}

@@ -11,6 +11,7 @@ import { SiteMap } from "./components/SiteMap";
 import { TimelinePane } from "./components/TimelinePane";
 import { TriageQueue } from "./components/TriageQueue";
 import { WatchTape } from "./components/WatchTape";
+import { fetchLive, LiveStatus } from "./live";
 import { SAMPLE_TWIN } from "./sample-twin";
 import { requiresHold, Rung, RUNGS, TapeEvent } from "./types";
 
@@ -20,7 +21,11 @@ interface PendingAction {
 }
 
 export default function App() {
-  const twin = SAMPLE_TWIN;
+  const [live, setLive] = useState<LiveStatus | null>(null);
+  useEffect(() => {
+    fetchLive().then(setLive);
+  }, []);
+  const twin = live?.posture ? { ...SAMPLE_TWIN, posture: live.posture } : SAMPLE_TWIN;
   const [selectedAlert, setSelectedAlert] = useState<string | null>(twin.alerts[0]?.id ?? null);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [focusedRung, setFocusedRung] = useState<Rung | null>(null);
@@ -87,7 +92,7 @@ export default function App() {
 
   return (
     <div className="console">
-      <Header twin={twin} />
+      <Header twin={twin} live={live !== null} />
       <main className="main">
         <section className="map-pane">
           <SiteMap twin={twin} selectedEntity={selectedEntity} onSelectEntity={setSelectedEntity} />

@@ -37,6 +37,8 @@ go-build:
 	go build -o $(GOBIN)/evidence-cli ./services/evidence/cmd/evidence-cli
 	go build -o $(GOBIN)/evidence-verify ./tools/evidence-verify
 	go build -o $(GOBIN)/playbook-lint ./tools/playbook-lint
+	go build -o $(GOBIN)/ontologyd ./services/ontology/cmd/ontologyd
+	go build -o $(GOBIN)/bffd ./services/bff/cmd/bffd
 
 # ── test ─────────────────────────────────────────────────────────────────────
 test: rust-test go-test py-test

@@ -12,6 +12,8 @@ RUN CGO_ENABLED=0 go build -o /out/threat-cli ./services/threat/cmd/threat-cli \
  && CGO_ENABLED=0 go build -o /out/evidence-verify ./tools/evidence-verify \
  && CGO_ENABLED=0 go build -o /out/playbook-lint ./tools/playbook-lint \
  && CGO_ENABLED=0 go build -o /out/rebuild-check ./services/ontology/cmd/rebuild-check \
+ && CGO_ENABLED=0 go build -o /out/ontologyd ./services/ontology/cmd/ontologyd \
+ && CGO_ENABLED=0 go build -o /out/bffd ./services/bff/cmd/bffd \
  && CGO_ENABLED=0 go build -o /out/sim-camera ./drivers/sim-camera
 
 FROM gcr.io/distroless/static-debian12
