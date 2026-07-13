@@ -5,6 +5,8 @@
 //! valid `authority_ref` is REJECTED. Not queued, not flagged — rejected and
 //! logged. Accessible is not authorized.
 
+pub mod driver_host;
+
 use aegis_common::chain;
 use aegis_common::clock::Timestamp;
 use aegis_common::types::{Authority, Envelope, Provenance};

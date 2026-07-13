@@ -64,7 +64,10 @@ See spec §5. Highlights:
   `ontologyd` serving GetTwin/StreamTwin/Query over gRPC with every write
   going through the log (ADR-0005), the unified incident timeline exported
   by every sim run (`sim/out/<scenario>/timeline.json`) and replayable in
-  the console (`t` key), and the north-star metric instrumented
-  (signal → receipt / visual / human decision).
+  the console (`t` key), the north-star metric instrumented
+  (signal → receipt / visual / human decision), driver ingestion into the
+  gateway's hash-chained topics (`gateway::driver_host` consuming the
+  sim-camera stream — declared authority or no ingestion), and the bff's
+  read edge (`/v1/twin` + SSE live stream, deny-by-default RBAC).
 
 See `docs/adr/` for decisions made along the way.
