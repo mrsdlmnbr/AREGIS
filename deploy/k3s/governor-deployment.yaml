@@ -1,0 +1,29 @@
+# The Governor: one replica, no egress, fail-closed. The signing key lives
+# in the appliance HSM (spec §19) and is reached through the device plugin —
+# it is NEVER mounted, injected, or templated into this manifest.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: governor
+  namespace: aegis
+spec:
+  replicas: 1 # there is exactly one authority; L3 fail-closed covers its absence
+  selector:
+    matchLabels: { app: governor }
+  template:
+    metadata:
+      labels: { app: governor }
+    spec:
+      containers:
+        - name: governor
+          image: aegis/governor:M4 # placeholder — built at M4, A/B signed OTA
+          ports:
+            - containerPort: 7300 # gRPC, mTLS, sole client: missions
+          resources:
+            requests: { cpu: 250m, memory: 128Mi }
+            limits: { cpu: "1", memory: 256Mi }
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          # HSM device plugin resource (vendor-specific) mounts here at M4.

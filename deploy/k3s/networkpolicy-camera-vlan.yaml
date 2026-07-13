@@ -1,0 +1,19 @@
+# Zero trust internally (spec §15.1): assume a compromised camera.
+# The camera VLAN may reach the gateway ingest port. Nothing else. Ever.
+# A camera cannot task a drone — by routing, before cryptography.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: camera-vlan-ingest-only
+  namespace: aegis
+spec:
+  podSelector:
+    matchLabels: { app: gateway }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 10.20.0.0/16 # camera VLAN
+      ports:
+        - protocol: TCP
+          port: 7100 # gateway ingest only
