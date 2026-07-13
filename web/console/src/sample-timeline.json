@@ -1,0 +1,122 @@
+{
+  "items": [
+    {
+      "kind": "envelope",
+      "source": "S-12",
+      "summary": "motion in grounds_north",
+      "t": 3.0
+    },
+    {
+      "kind": "envelope",
+      "source": "CAM-04",
+      "summary": "PERSON 0.79 → unknown:35FF conf 0.7900",
+      "t": 3.6
+    },
+    {
+      "kind": "alert",
+      "source": "threat",
+      "summary": "alert-1 SEV 4 score 6.30 (7 receipt terms)",
+      "t": 3.6
+    },
+    {
+      "kind": "envelope",
+      "source": "CAM-04",
+      "summary": "PERSON 0.84 → unknown:35FF conf 0.9664",
+      "t": 4.4
+    },
+    {
+      "kind": "alert",
+      "source": "threat",
+      "summary": "alert-1 SEV 4 score 6.30 (7 receipt terms)",
+      "t": 4.4
+    },
+    {
+      "kind": "decision",
+      "source": "governor",
+      "summary": "ALLOW OBSERVE (HUMAN_SUPERVISED)",
+      "t": 4.4
+    },
+    {
+      "kind": "mission",
+      "source": "missions",
+      "summary": "perimeter_breach_night opened for alert-1",
+      "t": 4.4
+    },
+    {
+      "kind": "evidence",
+      "source": "evidence",
+      "summary": "package sealed on trigger (2 media, 2 events)",
+      "t": 4.4
+    },
+    {
+      "kind": "envelope",
+      "source": "CAM-11",
+      "summary": "PERSON 0.81 → unknown:35FF conf 0.9936",
+      "t": 5.4
+    },
+    {
+      "kind": "alert",
+      "source": "threat",
+      "summary": "alert-1 SEV 4 score 6.60 (7 receipt terms)",
+      "t": 5.4
+    },
+    {
+      "kind": "alert",
+      "source": "threat",
+      "summary": "alert-1 SEV 4 score 6.60 (7 receipt terms)",
+      "t": 12.0
+    },
+    {
+      "kind": "action",
+      "source": "BEE-01",
+      "summary": "OBSERVE window elapsed — tasked under grant-000001",
+      "t": 12.4
+    },
+    {
+      "kind": "asset",
+      "source": "BEE-01",
+      "summary": "ON_STATION — eyes on",
+      "t": 15.9
+    },
+    {
+      "kind": "operator",
+      "source": "MERIDIAN-2",
+      "summary": "hold-to-authorize ANNOUNCE (valid)",
+      "t": 26.0
+    },
+    {
+      "kind": "decision",
+      "source": "governor",
+      "summary": "ALLOW ANNOUNCE",
+      "t": 26.0
+    },
+    {
+      "kind": "decision",
+      "source": "governor",
+      "summary": "DENY OBSERVE re-task — I3: trajectory leaves geofence",
+      "t": 26.5
+    },
+    {
+      "kind": "asset",
+      "source": "BEE-01",
+      "summary": "holding at the line, optics masked — we do not follow anyone off the property",
+      "t": 26.5
+    },
+    {
+      "kind": "mesh",
+      "source": "feeds",
+      "summary": "handoff to mesh nodes: M-04, M-07",
+      "t": 26.5
+    }
+  ],
+  "metrics": {
+    "first_signal_t": 3.0,
+    "signal_to_first_receipt_s": 0.6,
+    "signal_to_human_decision_s": 23.0,
+    "signal_to_visual_s": 12.9
+  },
+  "property": "ridgeline",
+  "scenario": "S-001-night-perimeter",
+  "schema": "aegis.sim.timeline/v1",
+  "start_time": "2026-03-14T03:11:40Z"
+}

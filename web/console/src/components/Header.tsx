@@ -18,7 +18,7 @@ export function Header({ twin }: { twin: TwinView }) {
         sig→decision p50:{" "}
         {twin.signalToDecisionP50 === null ? "—" : `${twin.signalToDecisionP50.toFixed(1)}s`}
       </span>
-      <span className="keys">j/k triage · 1-6 rungs · c cameras · Esc abort</span>
+      <span className="keys">j/k triage · 1-6 rungs · c cameras · t timeline · Esc abort</span>
     </header>
   );
 }

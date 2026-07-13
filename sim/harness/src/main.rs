@@ -160,6 +160,10 @@ fn run_scenario(path: &Path, opts: &Opts) -> Result<bool> {
         }
     }
 
+    // The unified incident timeline (M1) — written on every run, pass or
+    // fail, so a failing scenario leaves its whole story behind.
+    w.write_timeline().context("write timeline")?;
+
     if failures.is_empty() {
         println!("PASS  {name}");
         Ok(true)

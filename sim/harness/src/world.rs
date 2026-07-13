@@ -81,6 +81,9 @@ pub struct World {
     pub mesh_handoff: Vec<String>,
     pub first_signal_at: Option<Timestamp>,
     pub first_on_station_at: Option<Timestamp>,
+    pub first_alert_at: Option<Timestamp>,
+    pub first_human_decision_at: Option<Timestamp>,
+    pub timeline: Vec<serde_json::Value>,
     pub evidence_bundle: Option<PathBuf>,
     frames: Vec<(String, Vec<u8>)>,
 }
@@ -228,6 +231,9 @@ impl World {
             mesh_handoff: Vec::new(),
             first_signal_at: None,
             first_on_station_at: None,
+            first_alert_at: None,
+            first_human_decision_at: None,
+            timeline: Vec::new(),
             evidence_bundle: None,
             frames: Vec::new(),
             fixture,
@@ -255,6 +261,19 @@ impl World {
 
     pub fn abs_time(&self, t: f64) -> Timestamp {
         self.start + chrono::Duration::microseconds((t * 1e6).round() as i64)
+    }
+
+    fn rel(&self, at: Timestamp) -> f64 {
+        (at - self.start).num_microseconds().unwrap_or(0) as f64 / 1e6
+    }
+
+    /// One line of the unified incident timeline (M1: the console replays
+    /// this; the operator sees the same projection the assertions check).
+    fn note(&mut self, at: Timestamp, kind: &str, source: &str, summary: String) {
+        let t = (self.rel(at) * 1000.0).round() / 1000.0;
+        self.timeline.push(serde_json::json!({
+            "t": t, "kind": kind, "source": source, "summary": summary,
+        }));
     }
 
     // ── time stepping ────────────────────────────────────────────────────────
@@ -287,6 +306,7 @@ impl World {
             // grant to the asset. This is the ONLY place a command is issued,
             // and it holds a grant by construction.
             let ready = self.engine.tick(now);
+            let mut exec_notes: Vec<(String, String)> = Vec::new();
             for action in ready {
                 if let Some(grant) = action.grant {
                     let station = self
@@ -300,17 +320,34 @@ impl World {
                         {
                             // Onboard verification happens inside.
                             let _ = asset.task_observe(&grant, station, now);
+                            exec_notes.push((
+                                action.asset_id.clone(),
+                                format!(
+                                    "{} window elapsed — tasked under {}",
+                                    action.rung.name(),
+                                    grant.grant_id
+                                ),
+                            ));
                         }
                     }
                 }
             }
+            for (src, msg) in exec_notes {
+                self.note(now, "action", &src, msg);
+            }
 
             // Assets fly.
+            let mut on_station_note: Option<(String, Timestamp)> = None;
             for asset in &mut self.assets {
                 asset.step(STEP_SECONDS, now);
                 if asset.state == AssetState::OnStation && self.first_on_station_at.is_none() {
                     self.first_on_station_at = Some(now);
+                    on_station_note = Some((asset.id.clone(), now));
                 }
+            }
+
+            if let Some((id, at_ns)) = on_station_note {
+                self.note(at_ns, "asset", &id, "ON_STATION — eyes on".into());
             }
 
             // On-station assets keep the subject in frame (inside the fence).
@@ -402,6 +439,7 @@ impl World {
             )
             .map_err(|e| anyhow!("{e}"))?;
         self.resolver.ingest_motion(&device, &zone, at);
+        self.note(at, "envelope", &device, format!("motion in {zone}"));
         Ok(())
     }
 
@@ -461,6 +499,24 @@ impl World {
             embedding_of: ev.embedding_of.clone(),
         });
         self.tracked_entity = Some(eid.clone());
+        {
+            let e = self.resolver.entity(&eid).cloned();
+            if let Some(e) = e {
+                let dev = ev.device.clone().unwrap_or_default();
+                self.note(
+                    at,
+                    "envelope",
+                    &dev,
+                    format!(
+                        "{} {:.2} → {} conf {:.4}",
+                        e.class.name(),
+                        confidence,
+                        e.identity_id,
+                        e.confidence
+                    ),
+                );
+            }
+        }
         self.assess(&eid, at)?;
         Ok(())
     }
@@ -559,8 +615,21 @@ impl World {
             self.geofence.clone(),
             &zone_id,
             at,
-            Some(operator),
+            Some(operator.clone()),
             Some(signature),
+        );
+        if self.first_human_decision_at.is_none() {
+            self.first_human_decision_at = Some(at);
+        }
+        self.note(
+            at,
+            "operator",
+            &operator,
+            format!(
+                "hold-to-authorize {} ({})",
+                rung.name(),
+                ev.signature.as_deref().unwrap_or("?")
+            ),
         );
         if let Ok(d) = &decision {
             self.last_decision = Some(LastDecision {
@@ -569,6 +638,29 @@ impl World {
                 autonomy: "HUMAN_DIRECTED".into(),
                 invariant: d.invariant_violated.clone(),
             });
+            let inv = d.invariant_violated.clone();
+            self.note(
+                at,
+                "decision",
+                "governor",
+                format!(
+                    "{} {}{}",
+                    d.outcome.name(),
+                    rung.name(),
+                    inv.map(|i| format!(" — {i}")).unwrap_or_default()
+                ),
+            );
+            if !self.governor.security_events().is_empty()
+                && matches!(d.outcome, Outcome::Deny { .. })
+            {
+                let kind = self.governor.security_events().last().unwrap().kind.clone();
+                self.note(
+                    at,
+                    "security",
+                    "governor",
+                    format!("P0 security event: {kind}"),
+                );
+            }
             if let Outcome::Allow(grant) = &d.outcome {
                 self.last_request_grant = Some(grant.clone());
                 if rung == EscalationRung::Announce {
@@ -647,13 +739,43 @@ impl World {
                 autonomy: "HUMAN_SUPERVISED".into(),
                 invariant: d.invariant_violated.clone(),
             });
-            if matches!(d.outcome, Outcome::Deny { .. }) {
+            let denied = matches!(d.outcome, Outcome::Deny { .. });
+            self.note(
+                at,
+                "decision",
+                "governor",
+                format!(
+                    "{} OBSERVE re-task{}",
+                    d.outcome.name(),
+                    d.invariant_violated
+                        .as_deref()
+                        .map(|i| format!(" — {i}"))
+                        .unwrap_or_default()
+                ),
+            );
+            if denied {
                 // Pursuit denied: hold at the line, mask, hand off to mesh.
                 if let Some(asset) = self.assets.iter_mut().find(|a| a.id == asset_id) {
                     asset.geofence_hold = true;
                     asset.optics_masked = true;
                 }
+                self.note(
+                    at,
+                    "asset",
+                    &asset_id,
+                    "holding at the line, optics masked — we do not follow anyone off the property"
+                        .into(),
+                );
                 self.compute_mesh_handoff(&path);
+                if !self.mesh_handoff.is_empty() {
+                    let nodes = self.mesh_handoff.join(", ");
+                    self.note(
+                        at,
+                        "mesh",
+                        "feeds",
+                        format!("handoff to mesh nodes: {nodes}"),
+                    );
+                }
             }
         }
         Ok(())
@@ -783,6 +905,20 @@ impl World {
                 pol_note: output.pol_note.clone(),
             },
         );
+        if self.first_alert_at.is_none() {
+            self.first_alert_at = Some(at);
+        }
+        self.note(
+            at,
+            "alert",
+            "threat",
+            format!(
+                "{alert_id} SEV {} score {:.2} ({} receipt terms)",
+                output.severity,
+                output.score,
+                output.receipt.len()
+            ),
+        );
 
         // Playbook trigger — once per entity.
         if !self.playbook_fired_for.contains(&entity_id.to_string()) {
@@ -867,6 +1003,25 @@ impl World {
                 });
             }
         }
+        self.note(at, "decision", "governor", {
+            let d = self.last_decision.as_ref().unwrap();
+            format!(
+                "{} {} ({}){}",
+                d.outcome,
+                d.rung.name(),
+                d.autonomy,
+                d.invariant
+                    .as_deref()
+                    .map(|i| format!(" — {i}"))
+                    .unwrap_or_default()
+            )
+        });
+        self.note(
+            at,
+            "mission",
+            "missions",
+            format!("{playbook_name} opened for {alert_id}"),
+        );
         self.mission_id = Some(mid);
         Ok(())
     }
@@ -956,6 +1111,16 @@ impl World {
                 String::from_utf8_lossy(&out.stderr)
             );
         }
+        self.note(
+            at,
+            "evidence",
+            "evidence",
+            format!(
+                "package sealed on trigger ({} media, {} events)",
+                self.frames.len(),
+                event_ids.len()
+            ),
+        );
         self.evidence_bundle = Some(bundle_dir);
         Ok(())
     }
@@ -1023,6 +1188,40 @@ impl World {
 
     pub fn geofence_breaches(&self) -> u32 {
         self.assets.iter().map(|a| a.geofence_breaches).sum()
+    }
+
+    /// Write the unified incident timeline (spec §21 M1: unified timeline;
+    /// §23: the north star instrumented). Deterministic like everything else.
+    pub fn write_timeline(&self) -> Result<PathBuf> {
+        let dir = self.out_dir.join(&self.scenario.name);
+        std::fs::create_dir_all(&dir)?;
+        let metric = |a: Option<Timestamp>| a.map(|x| (self.rel(x) * 1000.0).round() / 1000.0);
+        let sig = self.first_signal_at;
+        let latency = |a: Option<Timestamp>| match (sig, a) {
+            (Some(s), Some(x)) => {
+                Some((((x - s).num_milliseconds() as f64) / 1000.0 * 1000.0).round() / 1000.0)
+            }
+            _ => None,
+        };
+        let doc = serde_json::json!({
+            "schema": "aegis.sim.timeline/v1",
+            "scenario": self.scenario.name,
+            "property": self.fixture.property.id,
+            "start_time": self.scenario.start_time,
+            "metrics": {
+                "first_signal_t": metric(sig),
+                // Seconds from first signal to a severity+receipt in front of
+                // a human — the moment a decision becomes possible.
+                "signal_to_first_receipt_s": latency(self.first_alert_at),
+                "signal_to_visual_s": latency(self.first_on_station_at),
+                // …and to the first human decision actually made (if any).
+                "signal_to_human_decision_s": latency(self.first_human_decision_at),
+            },
+            "items": self.timeline,
+        });
+        let path = dir.join("timeline.json");
+        std::fs::write(&path, serde_json::to_vec_pretty(&doc)?)?;
+        Ok(path)
     }
 }
 

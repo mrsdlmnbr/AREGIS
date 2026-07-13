@@ -8,6 +8,7 @@ import { AbortWindow } from "./components/AbortWindow";
 import { EscalationLadder } from "./components/EscalationLadder";
 import { Header } from "./components/Header";
 import { SiteMap } from "./components/SiteMap";
+import { TimelinePane } from "./components/TimelinePane";
 import { TriageQueue } from "./components/TriageQueue";
 import { WatchTape } from "./components/WatchTape";
 import { SAMPLE_TWIN } from "./sample-twin";
@@ -25,6 +26,7 @@ export default function App() {
   const [focusedRung, setFocusedRung] = useState<Rung | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [cameraPanel, setCameraPanel] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
   const [tape, setTape] = useState<TapeEvent[]>([
     { at: "03:11:43", kind: "log", text: "S-12 motion, north treeline" },
     { at: "03:11:44", kind: "log", text: "CAM-04 PERSON 0.79 → 0.84, fused" },
@@ -75,6 +77,8 @@ export default function App() {
         setFocusedRung(RUNGS[Number(e.key) - 1]);
       } else if (e.key === "c" && selectedEntity) {
         setCameraPanel((v) => !v);
+      } else if (e.key === "t") {
+        setTimelineOpen((v) => !v);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -87,6 +91,7 @@ export default function App() {
       <main className="main">
         <section className="map-pane">
           <SiteMap twin={twin} selectedEntity={selectedEntity} onSelectEntity={setSelectedEntity} />
+          {timelineOpen && <TimelinePane onClose={() => setTimelineOpen(false)} />}
           {cameraPanel && selectedEntity && (
             <div className="camera-panel">
               camera pivot for {selectedEntity} — CAM-04 · CAM-11 (M1: WebRTC via bff)

@@ -15,6 +15,8 @@ gen:
 	protoc -I proto \
 	  --go_out=gen/go --go_opt=paths=source_relative \
 	  --go_opt=Mproto/aegis/v1/aegis.proto=github.com/mrsdlmnbr/aregis/gen/go/aegis/v1\;aegisv1 \
+	  --go-grpc_out=gen/go --go-grpc_opt=paths=source_relative \
+	  --go-grpc_opt=Mproto/aegis/v1/aegis.proto=github.com/mrsdlmnbr/aregis/gen/go/aegis/v1\;aegisv1 \
 	  proto/aegis/v1/aegis.proto
 	@mkdir -p py/aegis_proto
 	@if python3 -c 'import grpc_tools' 2>/dev/null; then \

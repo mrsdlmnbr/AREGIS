@@ -358,3 +358,101 @@ body {
 .tape-event.signature {
   color: var(--warn);
 }
+
+.timeline-pane {
+  position: absolute;
+  inset: 8px;
+  background: rgba(11, 14, 18, 0.97);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  z-index: 5;
+}
+.timeline-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.timeline-title {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+}
+.timeline-load {
+  color: var(--dim);
+  cursor: pointer;
+  border: 1px dashed var(--line);
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+.timeline-close {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--dim);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 8px;
+}
+.timeline-metrics {
+  display: flex;
+  gap: 18px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--dim);
+  font-size: 11px;
+}
+.timeline-metric.emphasis strong {
+  color: var(--accent);
+}
+.timeline-items {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0;
+}
+.timeline-item {
+  display: flex;
+  gap: 10px;
+  padding: 2px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.timeline-item.cursor {
+  background: #171d26;
+  outline: 1px solid var(--line);
+}
+.timeline-t {
+  color: var(--dim);
+  width: 48px;
+  text-align: right;
+}
+.timeline-kind {
+  width: 70px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.timeline-kind.envelope { color: var(--dim); }
+.timeline-kind.alert { color: var(--sev4); }
+.timeline-kind.decision { color: var(--accent); }
+.timeline-kind.mission,
+.timeline-kind.action { color: #7a68d8; }
+.timeline-kind.operator { color: var(--warn); }
+.timeline-kind.asset { color: var(--ok); }
+.timeline-kind.security { color: var(--sev5); }
+.timeline-kind.evidence,
+.timeline-kind.mesh { color: #4fb8b8; }
+.timeline-source {
+  width: 90px;
+  color: var(--dim);
+}
+.timeline-summary {
+  flex: 1;
+}

@@ -57,6 +57,14 @@ See spec §5. Highlights:
 
 ## Status
 
-Milestone **M0** (spec §21): repo, contracts, event log, Governor with
-invariants I1–I9 and test vectors G-01…G-10, deterministic simulator running a
-synthetic estate end to end. See `docs/adr/` for decisions made along the way.
+- **M0 complete** (spec §21): repo, contracts, Governor with invariants
+  I1–I9 and test vectors G-01…G-10, deterministic simulator running a
+  synthetic estate end to end. CI green.
+- **M1 in progress**: file-backed event log seam (`services/eventlog`),
+  `ontologyd` serving GetTwin/StreamTwin/Query over gRPC with every write
+  going through the log (ADR-0005), the unified incident timeline exported
+  by every sim run (`sim/out/<scenario>/timeline.json`) and replayable in
+  the console (`t` key), and the north-star metric instrumented
+  (signal → receipt / visual / human decision).
+
+See `docs/adr/` for decisions made along the way.
