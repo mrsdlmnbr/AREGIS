@@ -35,7 +35,7 @@ zones:
   - id: gate_drive
     name: "Gate & driveway"
     class: THRESHOLD
-    area: [[600, 300], [680, 380], [600, 380], [680, 300]]
+    area: [[600, 300], [680, 300], [680, 380], [600, 380]]
   - id: perimeter_east
     name: "East perimeter"
     class: PERIMETER
